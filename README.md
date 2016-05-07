@@ -28,16 +28,16 @@ public class WebSocketConfig extends AbstractWebSocketMessageBrokerConfigurer {
 }
 ```
 
-**HelloSockController**
+**HelloSockController.groovy**
 ``` groovy
 @RestController
-class BoardSockController {
+class HelloSockController {
 
     @MessageMapping("/hello")
     @SendTo("/topic/greetings")
-    public String greeting(String msg) throws Exception {
+    def greeting(String msg) throws Exception {
         println("Receive greeting ${msg}")
-        return "ECHO: " + msg;
+        "ECHO: " + msg;
     }
 }
 ```
@@ -50,7 +50,7 @@ class BoardSockController {
  
  // ...
  
- mStompClient = Stomp.over(WebSocketClient.class, Config.STOMP_BASE_URI);
+ mStompClient = Stomp.over(WebSocketClient.class, "ws://localhost:8080/app/hello/websocket");
  mStompClient.connect();
   
  mStompClient.topic("/topic/greetings").subscribe(topicMessage -> {
@@ -65,15 +65,32 @@ class BoardSockController {
 
 ```
 
+Method `Stomp.over` consume class for create connection as first parameter.
+You must provide dependency for lib and pass class.
+At now supported connection providers:
+- WebSocketClient.class ('org.java-websocket:Java-WebSocket:1.3.0')
+
+You can add own connection provider. Just implement interface `ConnectionProvider`.
+If you implement new provider, please create pull request :)
+
 **Subscribe lifecycle connection**
 ``` java
 mStompClient.lifecycle().subscribe(lifecycleEvent -> {
     switch (lifecycleEvent.getType()) {
-        case ERROR:
-            if (mCallback != null) mCallback.showError(lifecycleEvent.getException().getMessage());
+    
+        case OPENED:
+            Log.d(TAG, "Stomp connection opened");
             break;
+            
+        case ERROR:
+            Log.e(TAG, "Error", lifecycleEvent.getException());
+            break;
+            
         case CLOSED:
-             LOGD(TAG, "Stomp connection closed");
+             Log.d(TAG, "Stomp connection closed");
+             break;
     }
 });
 ```
+
+Library support just send & receive messages. ACK messages, transactions not implemented yet.
