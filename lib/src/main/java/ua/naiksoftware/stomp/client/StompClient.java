@@ -80,10 +80,14 @@ public class StompClient {
     }
 
     public Observable<Void> send(StompMessage stompMessage) {
-        ConnectableObservable<Void> observable = mConnectionProvider.send(stompMessage.compile()).publish();
-        if (!mConnected) mWaitConnectionObservables.add(observable);
-        else observable.connect();
-        return observable;
+        Observable<Void> observable = mConnectionProvider.send(stompMessage.compile());
+        if (!mConnected) {
+            ConnectableObservable<Void> deffered = observable.publish();
+            mWaitConnectionObservables.add(deffered);
+            return deffered;
+        } else {
+            return observable;
+        }
     }
 
     private void callSubscribers(StompMessage stompMessage) {
