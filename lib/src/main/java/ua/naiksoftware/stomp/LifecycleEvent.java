@@ -1,6 +1,5 @@
 package ua.naiksoftware.stomp;
 
-import android.support.annotation.Nullable;
 
 /**
  * Created by naik on 05.05.16.
@@ -13,22 +12,22 @@ public class LifecycleEvent {
 
     private final Type mType;
 
-    @Nullable
+    //Nullable
     private Exception mException;
 
-    @Nullable
+    //Nullable
     private String mMessage;
 
     public LifecycleEvent(Type type) {
         mType = type;
     }
 
-    public LifecycleEvent(Type type, @Nullable Exception exception) {
+    public LifecycleEvent(Type type, Exception exception) {
         mType = type;
         mException = exception;
     }
 
-    public LifecycleEvent(Type type, @Nullable String message) {
+    public LifecycleEvent(Type type, String message) {
         mType = type;
         mMessage = message;
     }
@@ -37,12 +36,10 @@ public class LifecycleEvent {
         return mType;
     }
 
-    @Nullable
     public Exception getException() {
         return mException;
     }
 
-    @Nullable
     public String getMessage() {
         return mMessage;
     }
