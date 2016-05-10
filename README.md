@@ -6,6 +6,18 @@ This library provide support for STOMP protocol https://stomp.github.io/
 At now library works only as client for backend with support STOMP, such as
 NodeJS (stompjs or other) or Spring Boot (SockJS).
 
+Add library as gradle dependency
+
+```
+repositories { 
+    jcenter()
+    maven { url "https://jitpack.io" }
+}
+dependencies {
+    compile 'com.github.NaikSoftware:StompProtocolAndroid:{latest version}'
+}
+```
+
 ## Example backend (Spring Boot)
 
 **WebSocketConfig.groovy**
