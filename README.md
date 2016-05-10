@@ -50,7 +50,7 @@ class HelloSockController {
  
  // ...
  
- mStompClient = Stomp.over(WebSocketClient.class, "ws://localhost:8080/app/hello/websocket");
+ mStompClient = Stomp.over(WebSocket.class, "ws://localhost:8080/app/hello/websocket");
  mStompClient.connect();
   
  mStompClient.topic("/topic/greetings").subscribe(topicMessage -> {
@@ -68,7 +68,7 @@ class HelloSockController {
 Method `Stomp.over` consume class for create connection as first parameter.
 You must provide dependency for lib and pass class.
 At now supported connection providers:
-- WebSocketClient.class ('org.java-websocket:Java-WebSocket:1.3.0')
+- WebSocket.class ('org.java-websocket:Java-WebSocket:1.3.0')
 
 You can add own connection provider. Just implement interface `ConnectionProvider`.
 If you implement new provider, please create pull request :)
