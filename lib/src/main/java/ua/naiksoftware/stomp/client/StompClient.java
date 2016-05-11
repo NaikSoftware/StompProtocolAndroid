@@ -51,7 +51,8 @@ public class StompClient {
                 .subscribe(lifecycleEvent -> {
                     switch (lifecycleEvent.getType()) {
                         case OPENED:
-                            List<StompHeader> headers = Arrays.asList(new StompHeader(StompHeader.VERSION, SUPPORTED_VERSIONS));
+                            List<StompHeader> headers = new ArrayList<>();
+                            headers.add(new StompHeader(StompHeader.VERSION, SUPPORTED_VERSIONS));
                             if (_headers != null) headers.addAll(_headers);
                             mConnectionProvider.send(new StompMessage(StompCommand.CONNECT, headers, null).compile())
                                     .subscribe();
