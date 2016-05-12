@@ -8,7 +8,9 @@ import org.java_websocket.handshake.ServerHandshake;
 
 import java.net.URI;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 import rx.Observable;
 import rx.Subscriber;
@@ -21,6 +23,7 @@ public class WebSocketsConnectionProvider implements ConnectionProvider {
     private static final String TAG = WebSocketsConnectionProvider.class.getSimpleName();
 
     private final String mUri;
+    private final Map<String, String> mConnectHttpHeaders;
     private WebSocketClient mWebSocketClient;
     private List<Subscriber<? super LifecycleEvent>> mLifecycleSubscribers;
     private List<Subscriber<? super String>> mMessagesSubscribers;
@@ -28,9 +31,11 @@ public class WebSocketsConnectionProvider implements ConnectionProvider {
 
     /**
      * Support UIR scheme ws://host:port/path
+     * @param connectHttpHeaders may be null
      */
-    public WebSocketsConnectionProvider(String uri) {
+    public WebSocketsConnectionProvider(String uri, Map<String, String> connectHttpHeaders) {
         mUri = uri;
+        mConnectHttpHeaders = connectHttpHeaders != null ? connectHttpHeaders : new HashMap<>();
         mLifecycleSubscribers = new ArrayList<>();
         mMessagesSubscribers = new ArrayList<>();
     }
@@ -56,7 +61,7 @@ public class WebSocketsConnectionProvider implements ConnectionProvider {
         if (haveConnection)
             throw new IllegalStateException("Already have connection to web socket");
 
-        mWebSocketClient = new WebSocketClient(URI.create(mUri), new Draft_17()) {
+        mWebSocketClient = new WebSocketClient(URI.create(mUri), new Draft_17(), mConnectHttpHeaders, 0) {
             @Override
             public void onOpen(ServerHandshake handshakeData) {
                 emitLifecycleEvent(new LifecycleEvent(LifecycleEvent.Type.OPENED));
