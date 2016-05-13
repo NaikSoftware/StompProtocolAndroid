@@ -17,7 +17,6 @@ public class StompMessage {
     public static final String TERMINATE_MESSAGE_SYMBOL = "\u0000";
 
     private static final Pattern PATTERN_HEADER = Pattern.compile("([^:\\s]+):([^:\\s]+)");
-    private static final Pattern PATTERN_PAYLOAD = Pattern.compile("[^\\u0000]*");
 
     private final String mStompCommand;
     private final List<StompHeader> mStompHeaders;
@@ -76,7 +75,9 @@ public class StompMessage {
         }
 
         reader.skip("\\s");
-        String payload = reader.hasNext(PATTERN_PAYLOAD) ? reader.next(PATTERN_PAYLOAD) : null;
+
+        reader.useDelimiter(TERMINATE_MESSAGE_SYMBOL);
+        String payload = reader.hasNext() ? reader.next() : null;
 
         return new StompMessage(command, headers, payload);
     }
