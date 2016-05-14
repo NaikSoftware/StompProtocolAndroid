@@ -10,7 +10,7 @@ NodeJS (stompjs or other) or Spring Boot (SockJS).
 
 Add library as gradle dependency
 
-```
+```gradle
 repositories { 
     jcenter()
     maven { url "https://jitpack.io" }
@@ -23,7 +23,7 @@ dependencies {
 ## Example backend (Spring Boot)
 
 **WebSocketConfig.groovy**
-``` groovy
+```groovy
 @Configuration
 @EnableWebSocketMessageBroker
 public class WebSocketConfig extends AbstractWebSocketMessageBrokerConfigurer {
