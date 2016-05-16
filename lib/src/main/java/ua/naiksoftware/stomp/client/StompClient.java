@@ -78,6 +78,13 @@ public class StompClient {
                 });
     }
 
+    public Observable<Void> send(String destination) {
+        return send(new StompMessage(
+                StompCommand.SEND,
+                Collections.singletonList(new StompHeader(StompHeader.DESTINATION, destination)),
+                null));
+    }
+
     public Observable<Void> send(String destination, String data) {
         return send(new StompMessage(
                 StompCommand.SEND,
