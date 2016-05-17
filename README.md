@@ -71,7 +71,7 @@ class HelloSockController {
      Log.d(TAG, topicMessage.getPayload());
  });
   
- mStompClient.send("/app/hello", "My first STOMP message!");
+ mStompClient.send("/app/hello", "My first STOMP message!").subscribe();
   
  // ...
  
