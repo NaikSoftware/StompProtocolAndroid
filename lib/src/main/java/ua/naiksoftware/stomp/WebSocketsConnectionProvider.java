@@ -12,8 +12,10 @@ import org.java_websocket.handshake.ServerHandshake;
 import java.net.URI;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.TreeMap;
 
 import rx.Observable;
 import rx.Subscriber;
@@ -31,6 +33,7 @@ public class WebSocketsConnectionProvider implements ConnectionProvider {
     private List<Subscriber<? super LifecycleEvent>> mLifecycleSubscribers;
     private List<Subscriber<? super String>> mMessagesSubscribers;
     private boolean haveConnection;
+    private TreeMap<String, String> mServerHandshakeHeaders;
 
     /**
      * Support UIR scheme ws://host:port/path
@@ -68,12 +71,19 @@ public class WebSocketsConnectionProvider implements ConnectionProvider {
 
             @Override
             public void onWebsocketHandshakeReceivedAsClient(WebSocket conn, ClientHandshake request, ServerHandshake response) throws InvalidDataException {
-                super.onWebsocketHandshakeReceivedAsClient(conn, request, response);
+                mServerHandshakeHeaders = new TreeMap<>();
+                Iterator<String> keys = response.iterateHttpFields();
+                while (keys.hasNext()) {
+                    String key = keys.next();
+                    mServerHandshakeHeaders.put(key, response.getFieldValue(key));
+                }
             }
 
             @Override
             public void onOpen(ServerHandshake handshakeData) {
-                emitLifecycleEvent(new LifecycleEvent(LifecycleEvent.Type.OPENED));
+                LifecycleEvent openEvent = new LifecycleEvent(LifecycleEvent.Type.OPENED);
+                openEvent.setHandshakeResponseHeaders(mServerHandshakeHeaders);
+                emitLifecycleEvent(openEvent);
             }
 
             @Override

@@ -1,6 +1,8 @@
 package ua.naiksoftware.stomp;
 
 
+import java.util.TreeMap;
+
 /**
  * Created by naik on 05.05.16.
  */
@@ -17,6 +19,8 @@ public class LifecycleEvent {
 
     //Nullable
     private String mMessage;
+
+    private TreeMap<String, String> handshakeResponseHeaders = new TreeMap<>();
 
     public LifecycleEvent(Type type) {
         mType = type;
@@ -42,5 +46,13 @@ public class LifecycleEvent {
 
     public String getMessage() {
         return mMessage;
+    }
+
+    public void setHandshakeResponseHeaders(TreeMap<String, String> handshakeResponseHeaders) {
+        this.handshakeResponseHeaders = handshakeResponseHeaders;
+    }
+
+    public TreeMap<String, String> getHandshakeResponseHeaders() {
+        return handshakeResponseHeaders;
     }
 }
