@@ -2,8 +2,11 @@ package ua.naiksoftware.stomp;
 
 import android.util.Log;
 
+import org.java_websocket.WebSocket;
 import org.java_websocket.client.WebSocketClient;
 import org.java_websocket.drafts.Draft_17;
+import org.java_websocket.exceptions.InvalidDataException;
+import org.java_websocket.handshake.ClientHandshake;
 import org.java_websocket.handshake.ServerHandshake;
 
 import java.net.URI;
@@ -62,6 +65,12 @@ public class WebSocketsConnectionProvider implements ConnectionProvider {
             throw new IllegalStateException("Already have connection to web socket");
 
         mWebSocketClient = new WebSocketClient(URI.create(mUri), new Draft_17(), mConnectHttpHeaders, 0) {
+
+            @Override
+            public void onWebsocketHandshakeReceivedAsClient(WebSocket conn, ClientHandshake request, ServerHandshake response) throws InvalidDataException {
+                super.onWebsocketHandshakeReceivedAsClient(conn, request, response);
+            }
+
             @Override
             public void onOpen(ServerHandshake handshakeData) {
                 emitLifecycleEvent(new LifecycleEvent(LifecycleEvent.Type.OPENED));
