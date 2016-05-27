@@ -29,11 +29,15 @@ public class Stomp {
      * @return StompClient for receiving and sending messages. Call #StompClient.connect
      */
     public static StompClient over(Class clazz, String uri, Map<String, String> connectHttpHeaders) {
-        if (clazz == WebSocket.class) {
-            return createStompClient(new WebSocketsConnectionProvider(uri, connectHttpHeaders));
+        try {
+            if (Class.forName("org.java_websocket.WebSocket") != null && clazz == WebSocket.class) {
+                return createStompClient(new WebSocketsConnectionProvider(uri, connectHttpHeaders));
+            } else {
+                throw new RuntimeException("Not supported overlay transport: " + clazz.getName());
+            }
+        } catch (ClassNotFoundException e) {
+            throw new RuntimeException("Class for transport " + clazz.getName() + " not included to project", e);
         }
-
-        throw new RuntimeException("Not supported overlay transport: " + clazz.getName());
     }
 
     private static StompClient createStompClient(ConnectionProvider connectionProvider) {
