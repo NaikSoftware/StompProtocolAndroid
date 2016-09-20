@@ -1,0 +1,41 @@
+buildscript {
+	ext {
+		springBootVersion = '1.4.0.RELEASE'
+	}
+	repositories {
+		mavenCentral()
+	}
+	dependencies {
+		classpath("org.springframework.boot:spring-boot-gradle-plugin:${springBootVersion}")
+	}
+}
+
+apply plugin: 'groovy'
+apply plugin: 'idea'
+apply plugin: 'spring-boot'
+
+jar {
+	baseName = 'examplestompserver'
+	version = '0.0.1-SNAPSHOT'
+}
+sourceCompatibility = 1.8
+targetCompatibility = 1.8
+
+repositories {
+	mavenCentral()
+}
+
+
+dependencies {
+    compile('mysql:mysql-connector-java:5.1.16')
+    compile('org.codehaus.groovy:groovy')
+    compile('org.springframework.boot:spring-boot-starter-data-rest')
+    compile('org.springframework.boot:spring-boot-starter-security')
+    compile('org.springframework.boot:spring-boot-starter-websocket')
+    compile('org.springframework.security:spring-security-messaging')
+    compile('org.springframework.boot:spring-boot-starter-data-jpa')
+    compile('org.flywaydb:flyway-core:3.2.1')
+
+	testCompile('org.springframework.boot:spring-boot-starter-test')
+	testCompile('org.springframework.restdocs:spring-restdocs-mockmvc')
+}
