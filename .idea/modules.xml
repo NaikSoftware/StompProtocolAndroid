@@ -2,6 +2,7 @@
 <project version="4">
   <component name="ProjectModuleManager">
     <modules>
+      <module fileurl="file://$PROJECT_DIR$/example-client/example-client.iml" filepath="$PROJECT_DIR$/example-client/example-client.iml" />
       <module fileurl="file://$PROJECT_DIR$/.idea/modules/example-server.iml" filepath="$PROJECT_DIR$/.idea/modules/example-server.iml" />
       <module fileurl="file://$PROJECT_DIR$/lib/lib.iml" filepath="$PROJECT_DIR$/lib/lib.iml" />
     </modules>
