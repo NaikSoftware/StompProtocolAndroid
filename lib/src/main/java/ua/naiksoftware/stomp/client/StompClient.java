@@ -42,11 +42,34 @@ public class StompClient {
         mWaitConnectionObservables = new ArrayList<>();
     }
 
+    /**
+     * Connect without reconnect if connected
+     */
     public void connect() {
         connect(null);
     }
 
+    public void connect(boolean reconnect) {
+        connect(null, reconnect);
+    }
+
+    /**
+     * Connect without reconnect if connected
+     *
+     * @param _headers might be null
+     */
     public void connect(List<StompHeader> _headers) {
+        connect(_headers, false);
+    }
+
+    /**
+     * If already connected and reconnect=false - nope
+     *
+     * @param _headers might be null
+     */
+    public void connect(List<StompHeader> _headers, boolean reconnect) {
+        if (reconnect) disconnect();
+        if (mConnected) return;
         mConnectionProvider.getLifecycleReceiver()
                 .subscribe(lifecycleEvent -> {
                     switch (lifecycleEvent.getType()) {
@@ -121,6 +144,7 @@ public class StompClient {
 
     public void disconnect() {
         if (mMessagesSubscription != null) mMessagesSubscription.unsubscribe();
+        mConnected = false;
     }
 
     public Observable<StompMessage> topic(String destinationPath) {
