@@ -1,4 +1,4 @@
-package ua.naiksoftware.stomp;
+package ua.naiksoftware.stompclientexample;
 
 import org.junit.Test;
 
