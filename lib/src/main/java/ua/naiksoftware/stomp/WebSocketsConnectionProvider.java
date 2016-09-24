@@ -93,6 +93,7 @@ public class WebSocketsConnectionProvider implements ConnectionProvider {
 
             @Override
             public void onClose(int code, String reason, boolean remote) {
+                haveConnection = false;
                 emitLifecycleEvent(new LifecycleEvent(LifecycleEvent.Type.CLOSED));
             }
 
