@@ -196,4 +196,8 @@ public class StompClient {
         send(new StompMessage(StompCommand.UNSUBSCRIBE,
                 Collections.singletonList(new StompHeader(StompHeader.ID, topicId)), null));
     }
+
+    public boolean isConnected() {
+        return mConnected;
+    }
 }
