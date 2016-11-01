@@ -65,7 +65,7 @@ public class StompMessage {
     }
 
     public static StompMessage from(String data) {
-        if (TextUtils.isEmpty(data)) {
+        if (data == null || data.trim().isEmpty()) {
             return new StompMessage(StompCommand.UNKNOWN, null, data);
         }
         Scanner reader = new Scanner(new StringReader(data));
