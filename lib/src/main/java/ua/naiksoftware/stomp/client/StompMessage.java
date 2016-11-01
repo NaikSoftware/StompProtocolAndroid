@@ -1,5 +1,7 @@
 package ua.naiksoftware.stomp.client;
 
+import android.text.TextUtils;
+
 import java.io.StringReader;
 import java.util.ArrayList;
 import java.util.List;
@@ -63,6 +65,9 @@ public class StompMessage {
     }
 
     public static StompMessage from(String data) {
+        if (TextUtils.isEmpty(data)) {
+            return new StompMessage(StompCommand.UNKNOWN, null, data);
+        }
         Scanner reader = new Scanner(new StringReader(data));
         reader.useDelimiter("\\n");
         String command = reader.next();
