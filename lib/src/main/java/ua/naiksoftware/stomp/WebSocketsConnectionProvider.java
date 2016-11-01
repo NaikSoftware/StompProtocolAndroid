@@ -71,6 +71,7 @@ public class WebSocketsConnectionProvider implements ConnectionProvider {
 
             @Override
             public void onWebsocketHandshakeReceivedAsClient(WebSocket conn, ClientHandshake request, ServerHandshake response) throws InvalidDataException {
+                Log.d(TAG, "onWebsocketHandshakeReceivedAsClient with response: " + response.getHttpStatus() + " " + response.getHttpStatusMessage());
                 mServerHandshakeHeaders = new TreeMap<>();
                 Iterator<String> keys = response.iterateHttpFields();
                 while (keys.hasNext()) {
@@ -81,6 +82,7 @@ public class WebSocketsConnectionProvider implements ConnectionProvider {
 
             @Override
             public void onOpen(ServerHandshake handshakeData) {
+                Log.d(TAG, "onOpen with handshakeData: " + handshakeData.getHttpStatus() + " " + handshakeData.getHttpStatusMessage());
                 LifecycleEvent openEvent = new LifecycleEvent(LifecycleEvent.Type.OPENED);
                 openEvent.setHandshakeResponseHeaders(mServerHandshakeHeaders);
                 emitLifecycleEvent(openEvent);
@@ -88,18 +90,20 @@ public class WebSocketsConnectionProvider implements ConnectionProvider {
 
             @Override
             public void onMessage(String message) {
+                Log.d(TAG, "onMessage: " + message);
                 emitMessage(message);
             }
 
             @Override
             public void onClose(int code, String reason, boolean remote) {
+                Log.d(TAG, "onClose: code=" + code + " reason=" + reason + " remote=" + remote);
                 haveConnection = false;
                 emitLifecycleEvent(new LifecycleEvent(LifecycleEvent.Type.CLOSED));
             }
 
             @Override
             public void onError(Exception ex) {
-                ex.printStackTrace();
+                Log.e(TAG, "onError", ex);
                 emitLifecycleEvent(new LifecycleEvent(LifecycleEvent.Type.ERROR, ex));
             }
         };
