@@ -147,6 +147,10 @@ public class StompClient {
         mConnected = false;
     }
 
+    public Observable<StompMessage> topic(String destinationPath) {
+        return topic(destinationPath, null);
+    }
+
     public Observable<StompMessage> topic(String destinationPath, List<StompHeader> headerList) {
        return Observable.<StompMessage>create(subscriber -> {
            Set<Subscriber<? super StompMessage>> subscribersSet = mSubscribers.get(destinationPath);
@@ -183,9 +187,7 @@ public class StompClient {
           headers.add(new StompHeader(StompHeader.ID, topicId));
           headers.add(new StompHeader(StompHeader.DESTINATION, destinationPath));
           headers.add(new StompHeader(StompHeader.ACK, DEFAULT_ACK));
-          for(StompHeader header : headerList){
-              headers.add(header);
-          }
+          if (headerList != null) headers.addAll(headerList);
           send(new StompMessage(StompCommand.SUBSCRIBE,
                   headers, null));
       }
