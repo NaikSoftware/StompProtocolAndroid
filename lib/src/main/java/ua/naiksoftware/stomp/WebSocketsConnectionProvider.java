@@ -55,8 +55,9 @@ public class WebSocketsConnectionProvider implements ConnectionProvider {
             mMessagesSubscribers.add(subscriber);
 
         }).doOnUnsubscribe(() -> {
-            for (Subscriber<? super String> subscriber : mMessagesSubscribers) {
-                if (subscriber.isUnsubscribed()) mMessagesSubscribers.remove(subscriber);
+            Iterator<Subscriber<? super String>> iterator = mMessagesSubscribers.iterator();
+            while (iterator.hasNext()) {
+                if (iterator.next().isUnsubscribed()) iterator.remove();
             }
 
             if (mMessagesSubscribers.size() < 1) mWebSocketClient.close();
@@ -157,8 +158,9 @@ public class WebSocketsConnectionProvider implements ConnectionProvider {
             mLifecycleSubscribers.add(subscriber);
 
         }).doOnUnsubscribe(() -> {
-            for (Subscriber<? super LifecycleEvent> subscriber : mLifecycleSubscribers) {
-                if (subscriber.isUnsubscribed()) mLifecycleSubscribers.remove(subscriber);
+            Iterator<Subscriber<? super LifecycleEvent>> iterator = mLifecycleSubscribers.iterator();
+            while (iterator.hasNext()) {
+                if (iterator.next().isUnsubscribed()) iterator.remove();
             }
         });
     }
