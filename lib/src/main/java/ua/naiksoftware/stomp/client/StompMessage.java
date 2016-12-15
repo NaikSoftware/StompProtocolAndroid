@@ -1,7 +1,5 @@
 package ua.naiksoftware.stomp.client;
 
-import android.text.TextUtils;
-
 import java.io.StringReader;
 import java.util.ArrayList;
 import java.util.List;
@@ -18,7 +16,7 @@ public class StompMessage {
 
     public static final String TERMINATE_MESSAGE_SYMBOL = "\u0000";
 
-    private static final Pattern PATTERN_HEADER = Pattern.compile("([^:\\s]+):([^:\\s]+)");
+    private static final Pattern PATTERN_HEADER = Pattern.compile("([^:\\s]+)\\s*:\\s*([^:\\s]+)");
 
     private final String mStompCommand;
     private final List<StompHeader> mStompHeaders;
