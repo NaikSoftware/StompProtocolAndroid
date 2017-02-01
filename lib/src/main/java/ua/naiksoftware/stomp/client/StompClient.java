@@ -122,6 +122,10 @@ public class StompClient {
             mWaitConnectionObservables.add(deffered);
             return deffered;
         } else {
+            if(stompMessage.getStompCommand().equals(StompCommand.SUBSCRIBE)){
+                ConnectableObservable<Void> send = mConnectionProvider.send(stompMessage.compile()).publish();
+                send.connect();
+            }
             return observable;
         }
     }
