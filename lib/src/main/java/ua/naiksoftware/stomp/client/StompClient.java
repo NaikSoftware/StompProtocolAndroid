@@ -177,7 +177,7 @@ public class StompClient {
    }
 
     private Observable<Void> subscribePath(String destinationPath, List<StompHeader> headerList) {
-          if (destinationPath == null) return null;
+          if (destinationPath == null) return Observable.empty();
           String topicId = UUID.randomUUID().toString();
 
           if (mTopics == null) mTopics = new HashMap<>();
