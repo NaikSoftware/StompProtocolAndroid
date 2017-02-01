@@ -3,7 +3,6 @@ package ua.naiksoftware.stomp.client;
 import android.util.Log;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -157,7 +156,7 @@ public class StompClient {
            if (subscribersSet == null) {
                subscribersSet = new HashSet<>();
                mSubscribers.put(destinationPath, subscribersSet);
-               subscribePath(destinationPath, headerList);
+               subscribePath(destinationPath, headerList).subscribe();
            }
            subscribersSet.add(subscriber);
 
@@ -169,7 +168,7 @@ public class StompClient {
                        set.remove(subscriber);
                        if (set.size() < 1) {
                            mSubscribers.remove(dest);
-                           unsubscribePath(dest);
+                           unsubscribePath(dest).subscribe();
                        }
                    }
                }
@@ -177,8 +176,8 @@ public class StompClient {
        });
    }
 
-    private void subscribePath(String destinationPath, List<StompHeader> headerList) {
-          if (destinationPath == null) return;
+    private Observable<Void> subscribePath(String destinationPath, List<StompHeader> headerList) {
+          if (destinationPath == null) return Observable.empty();
           String topicId = UUID.randomUUID().toString();
 
           if (mTopics == null) mTopics = new HashMap<>();
@@ -188,16 +187,16 @@ public class StompClient {
           headers.add(new StompHeader(StompHeader.DESTINATION, destinationPath));
           headers.add(new StompHeader(StompHeader.ACK, DEFAULT_ACK));
           if (headerList != null) headers.addAll(headerList);
-          send(new StompMessage(StompCommand.SUBSCRIBE,
+          return send(new StompMessage(StompCommand.SUBSCRIBE,
                   headers, null));
       }
 
 
-    private void unsubscribePath(String dest) {
+    private Observable<Void> unsubscribePath(String dest) {
         String topicId = mTopics.get(dest);
         Log.d(TAG, "Unsubscribe path: " + dest + " id: " + topicId);
 
-        send(new StompMessage(StompCommand.UNSUBSCRIBE,
+        return send(new StompMessage(StompCommand.UNSUBSCRIBE,
                 Collections.singletonList(new StompHeader(StompHeader.ID, topicId)), null));
     }
 
