@@ -1,5 +1,5 @@
 <resources>
     <string name="app_name">Example client</string>
-    <string name="send_mode_1">Send mode 1</string>
-    <string name="send_mode_2">Send mode 2</string>
+    <string name="send_mode_1">Echo STOMP</string>
+    <string name="send_mode_2">Echo REST</string>
 </resources>
