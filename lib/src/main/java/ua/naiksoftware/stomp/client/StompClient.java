@@ -35,6 +35,7 @@ public class StompClient {
     private final ConnectionProvider mConnectionProvider;
     private HashMap<String, String> mTopics;
     private boolean mConnected;
+    private boolean isConnecting;
 
     public StompClient(ConnectionProvider connectionProvider) {
         mConnectionProvider = connectionProvider;
@@ -82,15 +83,23 @@ public class StompClient {
 
                         case CLOSED:
                             mConnected = false;
+                            isConnecting = false;
+                            break;
+
+                        case ERROR:
+                            mConnected = false;
+                            isConnecting = false;
                             break;
                     }
                 });
 
+        isConnecting = true;
         mMessagesSubscription = mConnectionProvider.messages()
                 .map(StompMessage::from)
                 .subscribe(stompMessage -> {
                     if (stompMessage.getStompCommand().equals(StompCommand.CONNECTED)) {
                         mConnected = true;
+                        isConnecting = false;
                         for (ConnectableObservable<Void> observable : mWaitConnectionObservables) {
                             observable.connect();
                         }
@@ -202,5 +211,9 @@ public class StompClient {
 
     public boolean isConnected() {
         return mConnected;
+    }
+
+    public boolean isConnecting() {
+        return isConnecting;
     }
 }
