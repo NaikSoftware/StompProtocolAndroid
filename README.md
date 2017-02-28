@@ -25,36 +25,49 @@ dependencies {
 **WebSocketConfig.groovy**
 ```groovy
 @Configuration
+@EnableWebSocket
 @EnableWebSocketMessageBroker
-public class WebSocketConfig extends AbstractWebSocketMessageBrokerConfigurer {
+class WebSocketConfig extends AbstractWebSocketMessageBrokerConfigurer {
 
     @Override
-    public void configureMessageBroker(MessageBrokerRegistry config) {
-        config.enableSimpleBroker("/topic");
-        config.setApplicationDestinationPrefixes("/app");
+    void configureMessageBroker(MessageBrokerRegistry config) {
+        config.enableSimpleBroker("/topic", "/queue", "/exchange");
+//        config.enableStompBrokerRelay("/topic", "/queue", "/exchange"); // Uncomment for external message broker (ActiveMQ, RabbitMQ)
+        config.setApplicationDestinationPrefixes("/topic", "/queue"); // prefix in client queries
+        config.setUserDestinationPrefix("/user");
     }
 
     @Override
-    public void registerStompEndpoints(StompEndpointRegistry registry) {
-        registry.addEndpoint("/hello")/*.setAllowedOrigins('*')*/.withSockJS();
+    void registerStompEndpoints(StompEndpointRegistry registry) {
+        registry.addEndpoint("/example-endpoint").withSockJS()
     }
 
+    @Override
+    void configureWebSocketTransport(WebSocketTransportRegistration registration) {
+        registration.setMessageSizeLimit(8 * 1024);
+    }
 }
 ```
 
-**HelloSockController.groovy**
+**SocketController.groovy**
 ``` groovy
+@Log4j
 @RestController
-class HelloSockController {
+class SocketController {
 
-    @MessageMapping("/hello")
-    @SendTo("/topic/greetings")
-    def greeting(String msg) throws Exception {
-        println("Receive greeting ${msg}")
-        "ECHO: " + msg;
+    @Autowired
+    SocketService socketService
+
+    @MessageMapping('/hello-msg-mapping')
+    @SendTo('/topic/greetings')
+    EchoModel echoMessageMapping(String message) {
+        log.debug("React to hello-msg-mapping")
+        return new EchoModel(message.trim())
     }
 }
 ```
+
+Check out the full example server https://github.com/NaikSoftware/stomp-protocol-example-server
 
 ## Example library usage
 
@@ -64,20 +77,22 @@ class HelloSockController {
  
  // ...
  
- mStompClient = Stomp.over(WebSocket.class, "ws://localhost:8080/app/hello/websocket");
+ mStompClient = Stomp.over(WebSocket.class, "ws://10.0.2.2:8080/example-endpoint/websocket");
  mStompClient.connect();
   
  mStompClient.topic("/topic/greetings").subscribe(topicMessage -> {
      Log.d(TAG, topicMessage.getPayload());
  });
   
- mStompClient.send("/app/hello", "My first STOMP message!").subscribe();
+ mStompClient.send("/topic/hello-msg-mapping", "My first STOMP message!").subscribe();
   
  // ...
  
  mStompClient.disconnect();
 
 ```
+
+See the full example https://github.com/NaikSoftware/StompProtocolAndroid/tree/master/example-client
 
 Method `Stomp.over` consume class for create connection as first parameter.
 You must provide dependency for lib and pass class.
