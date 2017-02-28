@@ -87,7 +87,7 @@ public class MainActivity extends AppCompatActivity {
     }
 
     public void sendEchoViaStomp(View v) {
-        mStompClient.send("Echo REST from " + mTimeFormat.format(new Date()))
+        mStompClient.send("/topic/hello-msg-mapping", "Echo STOMP " + mTimeFormat.format(new Date()))
                 .compose(applySchedulers())
                 .subscribe(aVoid -> {
                     Log.d(TAG, "STOMP echo send successfully");
@@ -99,7 +99,7 @@ public class MainActivity extends AppCompatActivity {
 
     public void sendEchoViaRest(View v) {
         mRestPingSubscription = RestClient.getInstance().getExampleRepository()
-                .sendRestEcho("Echo REST from " + mTimeFormat.format(new Date()))
+                .sendRestEcho("Echo REST " + mTimeFormat.format(new Date()))
                 .compose(applySchedulers())
                 .subscribe(aVoid -> {
                     Log.d(TAG, "REST echo send successfully");
@@ -110,7 +110,7 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void addItem(EchoModel echoModel) {
-        mDataSet.add(echoModel.getEcho() + " to " + mTimeFormat.format(new Date()));
+        mDataSet.add(echoModel.getEcho() + " - " + mTimeFormat.format(new Date()));
         mAdapter.notifyDataSetChanged();
         mRecyclerView.smoothScrollToPosition(mDataSet.size() - 1);
     }
