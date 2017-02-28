@@ -41,11 +41,6 @@ class WebSocketConfig extends AbstractWebSocketMessageBrokerConfigurer {
     void registerStompEndpoints(StompEndpointRegistry registry) {
         registry.addEndpoint("/example-endpoint").withSockJS()
     }
-
-    @Override
-    void configureWebSocketTransport(WebSocketTransportRegistration registration) {
-        registration.setMessageSizeLimit(8 * 1024);
-    }
 }
 ```
 
@@ -54,9 +49,6 @@ class WebSocketConfig extends AbstractWebSocketMessageBrokerConfigurer {
 @Log4j
 @RestController
 class SocketController {
-
-    @Autowired
-    SocketService socketService
 
     @MessageMapping('/hello-msg-mapping')
     @SendTo('/topic/greetings')
