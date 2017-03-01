@@ -132,6 +132,7 @@ public class WebSocketsConnectionProvider implements ConnectionProvider {
             if (mWebSocketClient == null) {
                 subscriber.onError(new IllegalStateException("Not connected yet"));
             } else {
+                Log.d(TAG, "Send STOMP message: " + stompMessage);
                 mWebSocketClient.send(stompMessage);
                 subscriber.onCompleted();
             }
