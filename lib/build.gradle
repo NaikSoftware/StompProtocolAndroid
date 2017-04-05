@@ -34,7 +34,7 @@ dependencies {
     testCompile 'junit:junit:4.12'
     compile 'io.reactivex:rxjava:1.2.0'
     // Supported transports
-    provided 'org.java-websocket:Java-WebSocket:1.3.0'
+    provided "org.java-websocket:java-websocket:1.3.2"
 }
 
 task sourcesJar(type: Jar) {
