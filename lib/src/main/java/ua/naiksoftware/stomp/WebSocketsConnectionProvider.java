@@ -1,5 +1,6 @@
 package ua.naiksoftware.stomp;
 
+import android.os.Looper;
 import android.util.Log;
 
 import org.java_websocket.WebSocket;
@@ -60,7 +61,10 @@ public class WebSocketsConnectionProvider implements ConnectionProvider {
                 if (iterator.next().isUnsubscribed()) iterator.remove();
             }
 
-            if (mMessagesSubscribers.size() < 1) mWebSocketClient.close();
+            if (mMessagesSubscribers.size() < 1) {
+                Log.d(TAG, "Close web socket connection now in thread " + Thread.currentThread() + " in main loop? " + (Looper.getMainLooper() == Looper.myLooper()));
+                mWebSocketClient.close();
+            }
         });
 
         createWebSocketConnection();

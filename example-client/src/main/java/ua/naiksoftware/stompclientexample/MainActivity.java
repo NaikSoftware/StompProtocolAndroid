@@ -49,11 +49,13 @@ public class MainActivity extends AppCompatActivity {
         mAdapter.setHasStableIds(true);
         mRecyclerView.setAdapter(mAdapter);
         mRecyclerView.setLayoutManager(new LinearLayoutManager(this, LinearLayoutManager.VERTICAL, true));
-
-        connectStomp();
     }
 
-    private void connectStomp() {
+    public void disconnectStomp(View view) {
+        mStompClient.disconnect();
+    }
+
+    public void connectStomp(View view) {
         mStompClient = Stomp.over(WebSocket.class, "ws://" + ANDROID_EMULATOR_LOCALHOST
                 + ":" + RestClient.SERVER_PORT + "/example-endpoint/websocket");
 

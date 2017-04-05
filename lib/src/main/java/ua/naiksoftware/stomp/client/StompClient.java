@@ -15,6 +15,7 @@ import rx.Observable;
 import rx.Subscriber;
 import rx.Subscription;
 import rx.observables.ConnectableObservable;
+import rx.schedulers.Schedulers;
 import ua.naiksoftware.stomp.ConnectionProvider;
 import ua.naiksoftware.stomp.LifecycleEvent;
 import ua.naiksoftware.stomp.StompHeader;
@@ -95,6 +96,7 @@ public class StompClient {
 
         isConnecting = true;
         mMessagesSubscription = mConnectionProvider.messages()
+                .unsubscribeOn(Schedulers.io())
                 .map(StompMessage::from)
                 .subscribe(stompMessage -> {
                     if (stompMessage.getStompCommand().equals(StompCommand.CONNECTED)) {
