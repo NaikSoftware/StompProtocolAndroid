@@ -62,7 +62,7 @@ public class WebSocketsConnectionProvider implements ConnectionProvider {
             }
 
             if (mMessagesSubscribers.size() < 1) {
-                Log.d(TAG, "Close web socket connection now in thread " + Thread.currentThread() + " in main loop? " + (Looper.getMainLooper() == Looper.myLooper()));
+                Log.d(TAG, "Close web socket connection now in thread " + Thread.currentThread());
                 mWebSocketClient.close();
             }
         });
