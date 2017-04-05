@@ -1,10 +1,8 @@
 package ua.naiksoftware.stomp;
 
-import android.os.Looper;
 import android.util.Log;
 
 import org.java_websocket.WebSocket;
-import org.java_websocket.client.DefaultSSLWebSocketClientFactory;
 import org.java_websocket.client.WebSocketClient;
 import org.java_websocket.drafts.Draft_17;
 import org.java_websocket.exceptions.InvalidDataException;
@@ -18,8 +16,6 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
-
-import javax.net.ssl.SSLContext;
 
 import rx.Observable;
 import rx.Subscriber;
@@ -115,16 +111,6 @@ public class WebSocketsConnectionProvider implements ConnectionProvider {
                 emitLifecycleEvent(new LifecycleEvent(LifecycleEvent.Type.ERROR, ex));
             }
         };
-
-        if(mUri.startsWith("wss")) {
-            try {
-                SSLContext sc = SSLContext.getInstance("TLS");
-                sc.init(null, null, null);
-                mWebSocketClient.setWebSocketFactory(new DefaultSSLWebSocketClientFactory(sc));
-            } catch (Exception e) {
-                e.printStackTrace();
-            }
-        }
 
         mWebSocketClient.connect();
         haveConnection = true;
