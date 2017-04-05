@@ -12,6 +12,10 @@ import org.java_websocket.handshake.ClientHandshake;
 import org.java_websocket.handshake.ServerHandshake;
 
 import java.net.URI;
+import java.security.KeyManagementException;
+import java.security.NoSuchAlgorithmException;
+import java.security.SecureRandom;
+import java.security.cert.X509Certificate;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Iterator;
@@ -20,6 +24,8 @@ import java.util.Map;
 import java.util.TreeMap;
 
 import javax.net.ssl.SSLContext;
+import javax.net.ssl.TrustManager;
+import javax.net.ssl.X509TrustManager;
 
 import rx.Observable;
 import rx.Subscriber;
@@ -118,9 +124,7 @@ public class WebSocketsConnectionProvider implements ConnectionProvider {
 
         if(mUri.startsWith("wss")) {
             try {
-                SSLContext sc = SSLContext.getInstance("TLS");
-                sc.init(null, null, null);
-                mWebSocketClient.setWebSocketFactory(new DefaultSSLWebSocketClientFactory(sc));
+                mWebSocketClient.setWebSocketFactory(new DefaultSSLWebSocketClientFactory(getSslContext()));
             } catch (Exception e) {
                 e.printStackTrace();
             }
@@ -168,5 +172,34 @@ public class WebSocketsConnectionProvider implements ConnectionProvider {
                 if (iterator.next().isUnsubscribed()) iterator.remove();
             }
         });
+    }
+
+    private SSLContext getSslContext() {
+        TrustManager[] byPassTrustManagers = new TrustManager[] { new X509TrustManager() {
+            public X509Certificate[] getAcceptedIssuers() {
+                return new X509Certificate[0];
+            }
+
+            public void checkClientTrusted(X509Certificate[] chain, String authType) {
+            }
+
+            public void checkServerTrusted(X509Certificate[] chain, String authType) {
+            }
+        } };
+
+        SSLContext sslContext=null;
+
+        try {
+            sslContext = SSLContext.getInstance("TLS");
+        } catch (NoSuchAlgorithmException e) {
+            e.printStackTrace();
+        }
+        try {
+            sslContext.init(null, byPassTrustManagers, new SecureRandom());
+        } catch (KeyManagementException e) {
+            e.printStackTrace();
+        }
+
+        return sslContext;
     }
 }
