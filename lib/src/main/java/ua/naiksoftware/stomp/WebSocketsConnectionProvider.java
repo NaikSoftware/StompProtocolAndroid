@@ -1,5 +1,6 @@
 package ua.naiksoftware.stomp;
 
+import android.os.Looper;
 import android.util.Log;
 
 import org.java_websocket.WebSocket;
@@ -16,6 +17,9 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
+
+import javax.net.ssl.SSLContext;
+import javax.net.ssl.SSLSocketFactory;
 
 import rx.Observable;
 import rx.Subscriber;
@@ -111,6 +115,17 @@ public class WebSocketsConnectionProvider implements ConnectionProvider {
                 emitLifecycleEvent(new LifecycleEvent(LifecycleEvent.Type.ERROR, ex));
             }
         };
+
+        if(mUri.startsWith("wss")) {
+            try {
+                SSLContext sc = SSLContext.getInstance("TLS");
+                sc.init(null, null, null);
+                SSLSocketFactory factory = sc.getSocketFactory();
+                mWebSocketClient.setSocket(factory.createSocket());
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+        }
 
         mWebSocketClient.connect();
         haveConnection = true;
