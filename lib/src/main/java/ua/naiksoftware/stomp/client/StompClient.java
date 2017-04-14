@@ -15,7 +15,6 @@ import rx.Observable;
 import rx.Subscriber;
 import rx.Subscription;
 import rx.observables.ConnectableObservable;
-import rx.schedulers.Schedulers;
 import ua.naiksoftware.stomp.ConnectionProvider;
 import ua.naiksoftware.stomp.LifecycleEvent;
 import ua.naiksoftware.stomp.StompHeader;
@@ -171,18 +170,21 @@ public class StompClient {
            subscribersSet.add(subscriber);
 
        }).doOnUnsubscribe(() -> {
+           Set<String> destSet = new HashSet<String>();
            for (String dest : mSubscribers.keySet()) {
                Set<Subscriber<? super StompMessage>> set = mSubscribers.get(dest);
                for (Subscriber<? super StompMessage> subscriber : set) {
                    if (subscriber.isUnsubscribed()) {
                        set.remove(subscriber);
                        if (set.size() < 1) {
-                           mSubscribers.remove(dest);
+                           destSet.add(dest);
                            unsubscribePath(dest).subscribe();
                        }
                    }
                }
            }
+           for (String dest : destSet)
+               mSubscribers.remove(dest);
        });
    }
 
