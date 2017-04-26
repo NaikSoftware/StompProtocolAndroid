@@ -6,6 +6,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -15,7 +16,6 @@ import rx.Observable;
 import rx.Subscriber;
 import rx.Subscription;
 import rx.observables.ConnectableObservable;
-import rx.schedulers.Schedulers;
 import ua.naiksoftware.stomp.ConnectionProvider;
 import ua.naiksoftware.stomp.LifecycleEvent;
 import ua.naiksoftware.stomp.StompHeader;
@@ -171,14 +171,18 @@ public class StompClient {
            subscribersSet.add(subscriber);
 
        }).doOnUnsubscribe(() -> {
-           for (String dest : mSubscribers.keySet()) {
-               Set<Subscriber<? super StompMessage>> set = mSubscribers.get(dest);
-               for (Subscriber<? super StompMessage> subscriber : set) {
+           Iterator<String> mapIterator = mSubscribers.keySet().iterator();
+           while (mapIterator.hasNext()) {
+               String destinationUrl = mapIterator.next();
+               Set<Subscriber<? super StompMessage>> set = mSubscribers.get(destinationUrl);
+               Iterator<Subscriber<? super StompMessage>> setIterator = set.iterator();
+               while (setIterator.hasNext()) {
+                   Subscriber<? super StompMessage> subscriber = setIterator.next();
                    if (subscriber.isUnsubscribed()) {
-                       set.remove(subscriber);
+                       setIterator.remove();
                        if (set.size() < 1) {
-                           mSubscribers.remove(dest);
-                           unsubscribePath(dest).subscribe();
+                           mapIterator.remove();
+                           unsubscribePath(destinationUrl).subscribe();
                        }
                    }
                }
