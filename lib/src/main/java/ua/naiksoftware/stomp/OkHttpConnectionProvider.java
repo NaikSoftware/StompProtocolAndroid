@@ -25,6 +25,7 @@ import rx.Subscriber;
 
     private final String mUri;
     private final Map<String, String> mConnectHttpHeaders;
+    private final OkHttpClient mOkHttpClient;
 
     private final List<Subscriber<? super LifecycleEvent>> mLifecycleSubscribers;
     private final List<Subscriber<? super String>> mMessagesSubscribers;
@@ -32,11 +33,12 @@ import rx.Subscriber;
     private WebSocket openedSocked;
 
 
-    /* package */ OkHttpConnectionProvider(String uri, Map<String, String> connectHttpHeaders) {
+    /* package */ OkHttpConnectionProvider(String uri, Map<String, String> connectHttpHeaders, OkHttpClient okHttpClient) {
         mUri = uri;
         mConnectHttpHeaders = connectHttpHeaders != null ? connectHttpHeaders : new HashMap<>();
         mLifecycleSubscribers = new ArrayList<>();
         mMessagesSubscribers = new ArrayList<>();
+        mOkHttpClient = okHttpClient;
     }
 
     @Override
@@ -67,15 +69,12 @@ import rx.Subscriber;
             throw new IllegalStateException("Already have connection to web socket");
         }
 
-        OkHttpClient okHttpClient = new OkHttpClient.Builder()
-                .build();
-
         Request.Builder requestBuilder = new Request.Builder()
                 .url(mUri);
         
         addConnectionHeadersToBuilder(requestBuilder, mConnectHttpHeaders);
         
-        openedSocked = okHttpClient.newWebSocket(requestBuilder.build(),
+        openedSocked = mOkHttpClient.newWebSocket(requestBuilder.build(),
                 new WebSocketListener() {
                     @Override
                     public void onOpen(WebSocket webSocket, Response response) {
