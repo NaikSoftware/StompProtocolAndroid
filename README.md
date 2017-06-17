@@ -65,6 +65,8 @@ Check out the full example server https://github.com/NaikSoftware/stomp-protocol
 
 **Basic usage**
 ``` java
+ import org.java_websocket.WebSocket;
+
  private StompClient mStompClient;
  
  // ...
@@ -89,7 +91,8 @@ See the full example https://github.com/NaikSoftware/StompProtocolAndroid/tree/m
 Method `Stomp.over` consume class for create connection as first parameter.
 You must provide dependency for lib and pass class.
 At now supported connection providers:
-- WebSocket.class ('org.java-websocket:Java-WebSocket:1.3.0')
+- `org.java_websocket.WebSocket.class` ('org.java-websocket:Java-WebSocket:1.3.0')
+- `okhttp3.WebSocket.class` ('com.squareup.okhttp3:okhttp:3.8.0')
 
 You can add own connection provider. Just implement interface `ConnectionProvider`.
 If you implement new provider, please create pull request :)

@@ -1,6 +1,5 @@
 package ua.naiksoftware.stomp;
 
-import android.os.Looper;
 import android.util.Log;
 
 import org.java_websocket.WebSocket;
@@ -27,15 +26,17 @@ import rx.Subscriber;
 /**
  * Created by naik on 05.05.16.
  */
-public class WebSocketsConnectionProvider implements ConnectionProvider {
+/* package */ class WebSocketsConnectionProvider implements ConnectionProvider {
 
     private static final String TAG = WebSocketsConnectionProvider.class.getSimpleName();
 
     private final String mUri;
     private final Map<String, String> mConnectHttpHeaders;
+
+    private final List<Subscriber<? super LifecycleEvent>> mLifecycleSubscribers;
+    private final List<Subscriber<? super String>> mMessagesSubscribers;
+
     private WebSocketClient mWebSocketClient;
-    private List<Subscriber<? super LifecycleEvent>> mLifecycleSubscribers;
-    private List<Subscriber<? super String>> mMessagesSubscribers;
     private boolean haveConnection;
     private TreeMap<String, String> mServerHandshakeHeaders;
 
@@ -43,7 +44,7 @@ public class WebSocketsConnectionProvider implements ConnectionProvider {
      * Support UIR scheme ws://host:port/path
      * @param connectHttpHeaders may be null
      */
-    public WebSocketsConnectionProvider(String uri, Map<String, String> connectHttpHeaders) {
+    /* package */ WebSocketsConnectionProvider(String uri, Map<String, String> connectHttpHeaders) {
         mUri = uri;
         mConnectHttpHeaders = connectHttpHeaders != null ? connectHttpHeaders : new HashMap<>();
         mLifecycleSubscribers = new ArrayList<>();
