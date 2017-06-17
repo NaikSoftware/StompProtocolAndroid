@@ -47,19 +47,24 @@ public class Stomp {
      * @return StompClient for receiving and sending messages. Call #StompClient.connect
      */
     public static StompClient over(Class clazz, String uri, Map<String, String> connectHttpHeaders, Object webSocketClient) {
-        if (clazz == WebSocket.class) {
+        try {
+            if (Class.forName("org.java_websocket.WebSocket") != null && clazz == WebSocket.class) {
 
-            if (webSocketClient != null) {
-                throw new IllegalArgumentException("You cannot pass a webSocketClient with 'org.java_websocket.WebSocket'. use null instead.");
+                if (webSocketClient != null) {
+                    throw new IllegalArgumentException("You cannot pass a webSocketClient with 'org.java_websocket.WebSocket'. use null instead.");
+                }
+
+                return createStompClient(new WebSocketsConnectionProvider(uri, connectHttpHeaders));
             }
+        } catch (ClassNotFoundException e) {}
+        try {
+            if (Class.forName("okhttp3.WebSocket") != null && clazz == okhttp3.WebSocket.class) {
 
-            return createStompClient(new WebSocketsConnectionProvider(uri, connectHttpHeaders));
-        } else if (clazz == okhttp3.WebSocket.class) {
+                OkHttpClient okHttpClient = getOkHttpClient(webSocketClient);
 
-            OkHttpClient okHttpClient = getOkHttpClient(webSocketClient);
-
-            return createStompClient(new OkHttpConnectionProvider(uri, connectHttpHeaders, okHttpClient));
-        }
+                return createStompClient(new OkHttpConnectionProvider(uri, connectHttpHeaders, okHttpClient));
+            }
+        } catch (ClassNotFoundException e) {}
 
         throw new RuntimeException("Not supported overlay transport: " + clazz.getName());
     }
