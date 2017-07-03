@@ -11,6 +11,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.CopyOnWriteArrayList;
 
 import rx.Observable;
 import rx.Subscriber;
@@ -40,7 +41,7 @@ public class StompClient {
 
     public StompClient(ConnectionProvider connectionProvider) {
         mConnectionProvider = connectionProvider;
-        mWaitConnectionObservables = new ArrayList<>();
+        mWaitConnectionObservables = new CopyOnWriteArrayList<>();
     }
 
     /**
