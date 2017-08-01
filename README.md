@@ -1,14 +1,17 @@
 # STOMP protocol via WebSocket for Android
 
-[![Release](https://jitpack.io/v/NaikSoftware/StompProtocolAndroid.svg)](https://jitpack.io/#NaikSoftware/StompProtocolAndroid)
+[![Release](https://jitpack.io/v/forresthopkinsa/StompProtocolAndroid.svg)](https://jitpack.io/#forresthopkinsa/StompProtocolAndroid)
 
 ## Overview
 
-This library provide support for STOMP protocol https://stomp.github.io/
-At now library works only as client for backend with support STOMP, such as
-NodeJS (stompjs or other) or Spring Boot (SockJS).
+**Note that this is a FORK of a project by NaikSoftware! This version is purely to avoid using RetroLambda!**
 
-Add library as gradle dependency
+This library provides support for [STOMP protocol](https://stomp.github.io/) over Websockets.
+
+At now library works only as client for any backend that supports STOMP, such as
+NodeJS (e.g. using StompJS) or Spring Boot ([with WebSocket support](https://spring.io/guides/gs/messaging-stomp-websocket/)).
+
+Add library as gradle dependency (Versioning info [here](https://jitpack.io/#forresthopkinsa/StompProtocolAndroid)):
 
 ```gradle
 repositories { 
@@ -16,45 +19,54 @@ repositories {
     maven { url "https://jitpack.io" }
 }
 dependencies {
-    compile 'com.github.NaikSoftware:StompProtocolAndroid:{latest version}'
+    compile 'com.github.forresthopkinsa:StompProtocolAndroid:{latest version}'
 }
 ```
 
+You can use this library two ways:
+
+- Using the old JACK toolchain
+  - If you have Java 8 compatiblity and Jack enabled, this library will work for you
+- Using the new Native Java 8 support
+  - As of this writing, you must be using Android Studio Canary to use this feature.
+  - You can find more info on the [Releases Page](https://github.com/forresthopkinsa/StompProtocolAndroid/releases)
+
+However, *this fork is NOT compatible with Retrolambda.*
+If you have RL as a dependency, then you should be using the [upstream version](https://github.com/NaikSoftware/StompProtocolAndroid) of this project!
+
 ## Example backend (Spring Boot)
 
-**WebSocketConfig.groovy**
-```groovy
+**WebSocketConfig.java**
+```java
 @Configuration
 @EnableWebSocket
 @EnableWebSocketMessageBroker
 class WebSocketConfig extends AbstractWebSocketMessageBrokerConfigurer {
 
     @Override
-    void configureMessageBroker(MessageBrokerRegistry config) {
-        config.enableSimpleBroker("/topic", "/queue", "/exchange");
-//        config.enableStompBrokerRelay("/topic", "/queue", "/exchange"); // Uncomment for external message broker (ActiveMQ, RabbitMQ)
-        config.setApplicationDestinationPrefixes("/topic", "/queue"); // prefix in client queries
-        config.setUserDestinationPrefix("/user");
+    public void configureMessageBroker(MessageBrokerRegistry config) {
+        // We're using Spring's built-in message broker, with prefix "/topic"
+        config.enableSimpleBroker("/topic");
+        // This is the prefix for client requests
+        config.setApplicationDestinationPrefixes("/app");
     }
 
     @Override
-    void registerStompEndpoints(StompEndpointRegistry registry) {
-        registry.addEndpoint("/example-endpoint").withSockJS()
+    public void registerStompEndpoints(StompEndpointRegistry registry) {
+        registry.addEndpoint("/example-endpoint");
     }
 }
 ```
 
-**SocketController.groovy**
-``` groovy
-@Log4j
+**SocketController.java**
+``` java
 @RestController
 class SocketController {
 
-    @MessageMapping('/hello-msg-mapping')
+    @MessageMapping('/hello')
     @SendTo('/topic/greetings')
-    EchoModel echoMessageMapping(String message) {
-        log.debug("React to hello-msg-mapping")
-        return new EchoModel(message.trim())
+    public String greeting(String name) {
+        return "Hello, " + name + "!";
     }
 }
 ```
@@ -65,24 +77,30 @@ Check out the full example server https://github.com/NaikSoftware/stomp-protocol
 
 **Basic usage**
 ``` java
- import org.java_websocket.WebSocket;
-
- private StompClient mStompClient;
+ import okhttp3.OkHttpClient;
+ import okhttp3.Request;
+ import okhttp3.Response;
+ import okhttp3.WebSocket;
+ import okhttp3.WebSocketListener;
  
  // ...
  
- mStompClient = Stomp.over(WebSocket.class, "ws://10.0.2.2:8080/example-endpoint/websocket");
- mStompClient.connect();
+ StompClient client = Stomp.over(WebSocket.class, "http://localhost/example-endpoint");
+ client.connect();
   
- mStompClient.topic("/topic/greetings").subscribe(topicMessage -> {
-     Log.d(TAG, topicMessage.getPayload());
+ client.topic("/topic/greetings").subscribe(message -> {
+     Log.i(TAG, "Received message: " + message.getPayload());
  });
   
- mStompClient.send("/topic/hello-msg-mapping", "My first STOMP message!").subscribe();
+ client.send("/app/hello", "world").subscribe(
+     aVoid -> Log.d(TAG, "Sent data!"),
+     error -> Log.e(TAG, "Encountered error while sending data!", error)
+ );
   
  // ...
- 
- mStompClient.disconnect();
+
+ // close socket connection when finished or exiting
+ client.disconnect();
 
 ```
 
@@ -91,30 +109,47 @@ See the full example https://github.com/NaikSoftware/StompProtocolAndroid/tree/m
 Method `Stomp.over` consume class for create connection as first parameter.
 You must provide dependency for lib and pass class.
 At now supported connection providers:
-- `org.java_websocket.WebSocket.class` ('org.java-websocket:Java-WebSocket:1.3.0')
-- `okhttp3.WebSocket.class` ('com.squareup.okhttp3:okhttp:3.8.0')
+- `org.java_websocket.WebSocket.class` ('org.java-websocket:Java-WebSocket:1.3.2')
+- `okhttp3.WebSocket.class` ('com.squareup.okhttp3:okhttp:3.8.1')
 
 You can add own connection provider. Just implement interface `ConnectionProvider`.
 If you implement new provider, please create pull request :)
 
 **Subscribe lifecycle connection**
 ``` java
-mStompClient.lifecycle().subscribe(lifecycleEvent -> {
+client.lifecycle().subscribe(lifecycleEvent -> {
     switch (lifecycleEvent.getType()) {
-    
         case OPENED:
             Log.d(TAG, "Stomp connection opened");
             break;
-            
-        case ERROR:
-            Log.e(TAG, "Error", lifecycleEvent.getException());
-            break;
-            
         case CLOSED:
              Log.d(TAG, "Stomp connection closed");
              break;
+        case ERROR:
+            Log.e(TAG, "Stomp connection error", lifecycleEvent.getException());
+            break;
     }
 });
 ```
 
-Library support just send & receive messages. ACK messages, transactions not implemented yet.
+**Custom client**
+
+You can use a custom HttpClient (for example, if you want to allow untrusted HTTPS) using the four-argument overload of Stomp.over, like so:
+
+``` java
+client = Stomp.over(WebSocket.class, address, null, unsafeClient);
+```
+
+Yes, it's safe to pass `null` for either (or both) of the last two arguments. That's exactly what the shorter overloads do.
+
+**Support**
+
+Right now, the library only supports sending and receiving messages. ACK messages and transactions are not implemented yet.
+
+**Additional Reading**
+
+- [Spring + Websockets + STOMP](https://spring.io/guides/gs/messaging-stomp-websocket/)
+- [STOMP Protocol](http://stomp.github.io/)
+- [Spring detailed documentation](https://docs.spring.io/spring/docs/current/spring-framework-reference/html/websocket.html#websocket-stomp)
+- [Create an Unsafe OkHttp Client](https://gist.github.com/grow2014/b6969d8f0cfc0f0a1b2bf12f84973dec)
+  - (for developing with invalid SSL certs)
