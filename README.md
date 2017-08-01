@@ -94,6 +94,12 @@ At now supported connection providers:
 - `org.java_websocket.WebSocket.class` ('org.java-websocket:Java-WebSocket:1.3.0')
 - `okhttp3.WebSocket.class` ('com.squareup.okhttp3:okhttp:3.8.0')
 
+You must include both of these in your Gradle dependencies:
+``` gradle
+compile 'org.java-websocket:java-websocket:1.3.0'
+compile 'com.squareup.okhttp3:okhttp:3.8.0'
+```
+
 You can add own connection provider. Just implement interface `ConnectionProvider`.
 If you implement new provider, please create pull request :)
 
