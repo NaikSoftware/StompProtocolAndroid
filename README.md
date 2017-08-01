@@ -17,6 +17,8 @@ repositories {
 }
 dependencies {
     compile 'com.github.NaikSoftware:StompProtocolAndroid:{latest version}'
+    compile 'org.java-websocket:java-websocket:1.3.0'
+    compile 'com.squareup.okhttp3:okhttp:3.8.0'
 }
 ```
 
