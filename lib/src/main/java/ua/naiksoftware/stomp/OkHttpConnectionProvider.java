@@ -16,8 +16,10 @@ import okhttp3.Response;
 import okhttp3.WebSocket;
 import okhttp3.WebSocketListener;
 import okio.ByteString;
+import rx.Completable;
 import rx.Observable;
 import rx.Subscriber;
+import rx.subjects.PublishSubject;
 
 /* package */ class OkHttpConnectionProvider implements ConnectionProvider {
 
@@ -28,7 +30,9 @@ import rx.Subscriber;
     private final OkHttpClient mOkHttpClient;
 
     private final List<Subscriber<? super LifecycleEvent>> mLifecycleSubscribers;
+    private final PublishSubject<LifecycleEvent> mLifecycleStream;
     private final List<Subscriber<? super String>> mMessagesSubscribers;
+    private final PublishSubject<String> mMessagesStream;
 
     private WebSocket openedSocked;
 
@@ -39,10 +43,20 @@ import rx.Subscriber;
         mLifecycleSubscribers = new ArrayList<>();
         mMessagesSubscribers = new ArrayList<>();
         mOkHttpClient = okHttpClient;
+
+        mLifecycleStream = PublishSubject.create();
+        mMessagesStream = PublishSubject.create();
     }
 
     @Override
     public Observable<String> messages() {
+        createWebSocketConnection();
+        // By using Subjects, we can leave the tracking of Subscribers to Rx.
+        // Additionally, server disconnection is now handled manually
+        //    (instead of trying to support disconnecting just by unsubscribing)
+        return mMessagesStream;
+
+        /*
         Observable<String> observable = Observable.<String>create(subscriber -> {
             mMessagesSubscribers.add(subscriber);
 
@@ -61,6 +75,14 @@ import rx.Subscriber;
 
         createWebSocketConnection();
         return observable;
+        */
+    }
+
+    // this used to be done automatically whenever the "subscriber list" was empty
+    // this way is more discrete
+    @Override
+    public Completable disconnect() {
+        return Completable.fromAction(() -> openedSocked.close(1000, ""));
     }
 
     private void createWebSocketConnection() {
@@ -71,9 +93,9 @@ import rx.Subscriber;
 
         Request.Builder requestBuilder = new Request.Builder()
                 .url(mUri);
-        
+
         addConnectionHeadersToBuilder(requestBuilder, mConnectHttpHeaders);
-        
+
         openedSocked = mOkHttpClient.newWebSocket(requestBuilder.build(),
                 new WebSocketListener() {
                     @Override
@@ -113,19 +135,24 @@ import rx.Subscriber;
 
     @Override
     public Observable<Void> send(String stompMessage) {
-        return Observable.create(subscriber -> {
+        // .create(onSubscribe) is deprecated because it's unsafe
+        return Observable.fromCallable(() -> {
             if (openedSocked == null) {
-                subscriber.onError(new IllegalStateException("Not connected yet"));
+                throw new IllegalStateException("Not connected yet");
             } else {
                 Log.d(TAG, "Send STOMP message: " + stompMessage);
                 openedSocked.send(stompMessage);
-                subscriber.onCompleted();
+                return null;
             }
         });
     }
 
     @Override
     public Observable<LifecycleEvent> getLifecycleReceiver() {
+        // Once again, opting to leave Subscriber tracking to Rx
+        return mLifecycleStream;
+
+        /*
         return Observable.<LifecycleEvent>create(subscriber -> {
             mLifecycleSubscribers.add(subscriber);
 
@@ -135,6 +162,7 @@ import rx.Subscriber;
                 if (iterator.next().isUnsubscribed()) iterator.remove();
             }
         });
+        */
     }
 
     private TreeMap<String, String> headersAsMap(Response response) {
@@ -154,15 +182,24 @@ import rx.Subscriber;
 
     private void emitLifecycleEvent(LifecycleEvent lifecycleEvent) {
         Log.d(TAG, "Emit lifecycle event: " + lifecycleEvent.getType().name());
+        // I know Subjects are discouraged, but I think this is way cleaner than before
+        mLifecycleStream.onNext(lifecycleEvent);
+
+        /*
         for (Subscriber<? super LifecycleEvent> subscriber : mLifecycleSubscribers) {
             subscriber.onNext(lifecycleEvent);
         }
+        */
     }
 
     private void emitMessage(String stompMessage) {
         Log.d(TAG, "Emit STOMP message: " + stompMessage);
+        mMessagesStream.onNext(stompMessage);
+
+        /*
         for (Subscriber<? super String> subscriber : mMessagesSubscribers) {
             subscriber.onNext(stompMessage);
         }
+        */
     }
 }

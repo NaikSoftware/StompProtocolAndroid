@@ -20,6 +20,7 @@ import java.util.TreeMap;
 import javax.net.ssl.SSLContext;
 import javax.net.ssl.SSLSocketFactory;
 
+import rx.Completable;
 import rx.Observable;
 import rx.Subscriber;
 
@@ -142,6 +143,14 @@ import rx.Subscriber;
                 mWebSocketClient.send(stompMessage);
                 subscriber.onCompleted();
             }
+        });
+    }
+
+    // Just to appease javac
+    @Override
+    public Completable disconnect() {
+        return Completable.fromAction(() -> {
+            throw new UnsupportedOperationException("JAVA WEB SOCKETS ARE NOT YET SUPPORTED IN THIS VERSION");
         });
     }
 

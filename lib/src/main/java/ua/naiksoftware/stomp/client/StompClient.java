@@ -72,7 +72,8 @@ public class StompClient {
     public void connect(List<StompHeader> _headers, boolean reconnect) {
         if (reconnect) disconnect();
         if (mConnected) return;
-        mConnectionProvider.getLifecycleReceiver()
+        // why wasn't this DRY before?
+        lifecycle()
                 .subscribe(lifecycleEvent -> {
                     switch (lifecycleEvent.getType()) {
                         case OPENED:
@@ -128,9 +129,10 @@ public class StompClient {
     public Observable<Void> send(StompMessage stompMessage) {
         Observable<Void> observable = mConnectionProvider.send(stompMessage.compile());
         if (!mConnected) {
-            ConnectableObservable<Void> deffered = observable.publish();
-            mWaitConnectionObservables.add(deffered);
-            return deffered;
+            // my inner grammar nazi
+            ConnectableObservable<Void> deferred = observable.publish();
+            mWaitConnectionObservables.add(deferred);
+            return deferred;
         } else {
             return observable;
         }
@@ -153,8 +155,8 @@ public class StompClient {
     }
 
     public void disconnect() {
-        if (mMessagesSubscription != null) mMessagesSubscription.unsubscribe();
-        mConnected = false;
+        // the other things are now taken care of downstream
+        mConnectionProvider.disconnect().subscribe();
     }
 
     public Observable<StompMessage> topic(String destinationPath) {

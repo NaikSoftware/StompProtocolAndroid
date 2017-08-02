@@ -1,5 +1,6 @@
 package ua.naiksoftware.stomp;
 
+import rx.Completable;
 import rx.Observable;
 
 /**
@@ -23,4 +24,10 @@ public interface ConnectionProvider {
      * Subscribe this for receive #LifecycleEvent events
      */
     Observable<LifecycleEvent> getLifecycleReceiver();
+
+    /**
+     * Disconnects from server. This is basically a Callable.
+     * Automatically emits Lifecycle.CLOSE
+     */
+    Completable disconnect();
 }
