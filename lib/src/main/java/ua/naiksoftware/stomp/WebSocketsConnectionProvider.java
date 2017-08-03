@@ -10,10 +10,8 @@ import org.java_websocket.handshake.ClientHandshake;
 import org.java_websocket.handshake.ServerHandshake;
 
 import java.net.URI;
-import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Iterator;
-import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
 
@@ -22,55 +20,47 @@ import javax.net.ssl.SSLSocketFactory;
 
 import rx.Completable;
 import rx.Observable;
-import rx.Subscriber;
+import rx.subjects.PublishSubject;
 
 /**
  * Created by naik on 05.05.16.
  */
-/* package */ class WebSocketsConnectionProvider implements ConnectionProvider {
+
+class WebSocketsConnectionProvider implements ConnectionProvider {
 
     private static final String TAG = WebSocketsConnectionProvider.class.getSimpleName();
 
     private final String mUri;
     private final Map<String, String> mConnectHttpHeaders;
 
-    private final List<Subscriber<? super LifecycleEvent>> mLifecycleSubscribers;
-    private final List<Subscriber<? super String>> mMessagesSubscribers;
-
     private WebSocketClient mWebSocketClient;
     private boolean haveConnection;
     private TreeMap<String, String> mServerHandshakeHeaders;
+
+    private final PublishSubject<LifecycleEvent> mLifecycleStream;
+    private final PublishSubject<String> mMessagesStream;
 
     /**
      * Support UIR scheme ws://host:port/path
      * @param connectHttpHeaders may be null
      */
-    /* package */ WebSocketsConnectionProvider(String uri, Map<String, String> connectHttpHeaders) {
+    WebSocketsConnectionProvider(String uri, Map<String, String> connectHttpHeaders) {
         mUri = uri;
         mConnectHttpHeaders = connectHttpHeaders != null ? connectHttpHeaders : new HashMap<>();
-        mLifecycleSubscribers = new ArrayList<>();
-        mMessagesSubscribers = new ArrayList<>();
+
+        mLifecycleStream = PublishSubject.create();
+        mMessagesStream = PublishSubject.create();
     }
 
     @Override
     public Observable<String> messages() {
-        Observable<String> observable = Observable.<String>create(subscriber -> {
-            mMessagesSubscribers.add(subscriber);
-
-        }).doOnUnsubscribe(() -> {
-            Iterator<Subscriber<? super String>> iterator = mMessagesSubscribers.iterator();
-            while (iterator.hasNext()) {
-                if (iterator.next().isUnsubscribed()) iterator.remove();
-            }
-
-            if (mMessagesSubscribers.size() < 1) {
-                Log.d(TAG, "Close web socket connection now in thread " + Thread.currentThread());
-                mWebSocketClient.close();
-            }
-        });
-
         createWebSocketConnection();
-        return observable;
+        return mMessagesStream;
+    }
+
+    @Override
+    public Completable disconnect() {
+        return Completable.fromAction(() -> mWebSocketClient.close());
     }
 
     private void createWebSocketConnection() {
@@ -134,50 +124,30 @@ import rx.Subscriber;
     }
 
     @Override
-    public Observable<Void> send(String stompMessage) {
-        return Observable.create(subscriber -> {
+    public Completable send(String stompMessage) {
+        return Completable.fromCallable(() -> {
             if (mWebSocketClient == null) {
-                subscriber.onError(new IllegalStateException("Not connected yet"));
+                throw new IllegalStateException("Not connected yet");
             } else {
                 Log.d(TAG, "Send STOMP message: " + stompMessage);
                 mWebSocketClient.send(stompMessage);
-                subscriber.onCompleted();
+                return null;
             }
-        });
-    }
-
-    // Just to appease javac
-    @Override
-    public Completable disconnect() {
-        return Completable.fromAction(() -> {
-            throw new UnsupportedOperationException("JAVA WEB SOCKETS ARE NOT YET SUPPORTED IN THIS VERSION");
         });
     }
 
     private void emitLifecycleEvent(LifecycleEvent lifecycleEvent) {
         Log.d(TAG, "Emit lifecycle event: " + lifecycleEvent.getType().name());
-        for (Subscriber<? super LifecycleEvent> subscriber : mLifecycleSubscribers) {
-            subscriber.onNext(lifecycleEvent);
-        }
+        mLifecycleStream.onNext(lifecycleEvent);
     }
 
     private void emitMessage(String stompMessage) {
         Log.d(TAG, "Emit STOMP message: " + stompMessage);
-        for (Subscriber<? super String> subscriber : mMessagesSubscribers) {
-            subscriber.onNext(stompMessage);
-        }
+        mMessagesStream.onNext(stompMessage);
     }
 
     @Override
     public Observable<LifecycleEvent> getLifecycleReceiver() {
-        return Observable.<LifecycleEvent>create(subscriber -> {
-            mLifecycleSubscribers.add(subscriber);
-
-        }).doOnUnsubscribe(() -> {
-            Iterator<Subscriber<? super LifecycleEvent>> iterator = mLifecycleSubscribers.iterator();
-            while (iterator.hasNext()) {
-                if (iterator.next().isUnsubscribed()) iterator.remove();
-            }
-        });
+        return mLifecycleStream;
     }
 }

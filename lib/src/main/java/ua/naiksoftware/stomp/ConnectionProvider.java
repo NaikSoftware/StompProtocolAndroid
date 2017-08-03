@@ -18,7 +18,7 @@ public interface ConnectionProvider {
      * onError if not connected or error detected will be called, or onCompleted id sending started
      * TODO: send messages with ACK
      */
-    Observable<Void> send(String stompMessage);
+    Completable send(String stompMessage);
 
     /**
      * Subscribe this for receive #LifecycleEvent events

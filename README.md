@@ -146,7 +146,7 @@ Yes, it's safe to pass `null` for either (or both) of the last two arguments. Th
 
 Right now, the library only supports sending and receiving messages. ACK messages and transactions are not implemented yet.
 
-**Additional Reading**
+## Additional Reading
 
 - [Spring + Websockets + STOMP](https://spring.io/guides/gs/messaging-stomp-websocket/)
 - [STOMP Protocol](http://stomp.github.io/)
