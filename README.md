@@ -134,17 +134,88 @@ client.lifecycle().subscribe(lifecycleEvent -> {
 
 **Custom client**
 
-You can use a custom HttpClient (for example, if you want to allow untrusted HTTPS) using the four-argument overload of Stomp.over, like so:
+You can use a custom OkHttpClient (for example, [if you want to allow untrusted HTTPS](getUnsafeOkHttpClient())) using the four-argument overload of Stomp.over, like so:
 
 ``` java
-client = Stomp.over(WebSocket.class, address, null, unsafeClient);
+client = Stomp.over(WebSocket.class, address, null, getUnsafeOkHttpClient());
 ```
 
 Yes, it's safe to pass `null` for either (or both) of the last two arguments. That's exactly what the shorter overloads do.
 
+Note: This method is only supported using OkHttp, not JWS.
+
 **Support**
 
 Right now, the library only supports sending and receiving messages. ACK messages and transactions are not implemented yet.
+
+## Changes in this fork
+
+**Build changes**
+
+The upstream master is based on Retrolambda. This version is based on Native Java 8 compilation,
+although it should also work with Jack. It will *not* work with Retrolambda.
+
+**Code changes**
+
+These are the possible changes you need to make to your code for this branch, if you were using the upstream before:
+
+- Disconnecting is now mandatory
+  - Previously, the socket would automatically disconnect if nothing was listening to it
+  - Now, it will not disconnect unless you explicitly run client.disconnect()
+- send() now returns a Completable
+  - Previously, it returned an Observable\<Void\>
+  - Now, it and all its overloads return a Completable, which is functionally about the same
+  - **However**, Completable does not inherit from Observable, so there are a couple differences:
+    - Of course, if you were storing send() in an Observable, you'll have to change that
+    - Additionally, if you were inheriting onNext before, you're going to have to adjust it:
+      - Old way, deprecated:
+        ``` java
+        client.send("/app/hello", "world").subscribe(
+            aVoid -> Log.d(TAG, "Sent data!"),
+            error -> Log.e(TAG, "Encountered error while sending data!", error)
+        );
+        ```
+        !! -v:
+        ``` java
+        client.send("/app/hello", "world").subscribe(new Subscriber<Void>() {
+            @Override
+            public void onNext(Void aVoid) {
+                Log.d(TAG, "Sent data!");
+            }
+            @Override
+            public void onError(Throwable error) {
+                Log.e(TAG, "Encountered error while sending data!", error);
+            }
+            @Override
+            public void onCompleted() {} // useless
+        });
+        ```
+      - New way of handling it:
+        ``` java
+        client.send("/app/hello", "world").subscribe(
+            () -> Log.d(TAG, "Sent data!"),
+            error -> Log.e(TAG, "Encountered error while sending data!", error)
+        );
+        ```
+        Or if you just can't get enough of anonymous classes:
+        ``` java
+        client.send("/app/hello", "world").subscribe(new Subscriber<Object /*This can be anything*/ >() {
+            @Override
+            public void onCompleted() {
+                Log.d(TAG, "Sent data!");
+            }
+            @Override
+            public void onError(Throwable error) {
+                Log.e(TAG, "Encountered error while sending data!", error);
+            }
+            @Override
+            public void onNext(Object o) {} // useless
+        });
+        ```
+    - Be sure to implement this change, because the IDE might not catch the error.
+- Passing null as the topic path now throws an exception
+  - Previously, it was supposed to silently fail, although it would probably hit a NPE first (untested)
+  - Now it throws an IllegalArgumentException
 
 ## Additional Reading
 
