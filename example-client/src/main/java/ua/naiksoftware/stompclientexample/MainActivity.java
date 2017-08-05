@@ -1,7 +1,7 @@
 package ua.naiksoftware.stompclientexample;
 
-import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
+import android.support.v7.app.AppCompatActivity;
 import android.support.v7.widget.LinearLayoutManager;
 import android.support.v7.widget.RecyclerView;
 import android.util.Log;
@@ -19,10 +19,10 @@ import java.util.Date;
 import java.util.List;
 import java.util.Locale;
 
-import rx.Observable;
-import rx.Subscription;
-import rx.android.schedulers.AndroidSchedulers;
-import rx.schedulers.Schedulers;
+import io.reactivex.FlowableTransformer;
+import io.reactivex.android.schedulers.AndroidSchedulers;
+import io.reactivex.disposables.Disposable;
+import io.reactivex.schedulers.Schedulers;
 import ua.naiksoftware.stomp.Stomp;
 import ua.naiksoftware.stomp.client.StompClient;
 
@@ -35,7 +35,7 @@ public class MainActivity extends AppCompatActivity {
     private SimpleAdapter mAdapter;
     private List<String> mDataSet = new ArrayList<>();
     private StompClient mStompClient;
-    private Subscription mRestPingSubscription;
+    private Disposable mRestPingDisposable;
     private final SimpleDateFormat mTimeFormat = new SimpleDateFormat("HH:mm:ss", Locale.getDefault());
     private RecyclerView mRecyclerView;
     private Gson mGson = new GsonBuilder().create();
@@ -100,7 +100,7 @@ public class MainActivity extends AppCompatActivity {
     }
 
     public void sendEchoViaRest(View v) {
-        mRestPingSubscription = RestClient.getInstance().getExampleRepository()
+        mRestPingDisposable = RestClient.getInstance().getExampleRepository()
                 .sendRestEcho("Echo REST " + mTimeFormat.format(new Date()))
                 .compose(applySchedulers())
                 .subscribe(aVoid -> {
@@ -122,8 +122,8 @@ public class MainActivity extends AppCompatActivity {
         Toast.makeText(this, text, Toast.LENGTH_SHORT).show();
     }
 
-    protected <T> Observable.Transformer<T, T> applySchedulers() {
-        return rObservable -> rObservable
+    protected <T> FlowableTransformer<T, T> applySchedulers() {
+        return tFlowable -> tFlowable
                 .unsubscribeOn(Schedulers.newThread())
                 .subscribeOn(Schedulers.io())
                 .observeOn(AndroidSchedulers.mainThread());
@@ -132,7 +132,7 @@ public class MainActivity extends AppCompatActivity {
     @Override
     protected void onDestroy() {
         mStompClient.disconnect();
-        if (mRestPingSubscription != null) mRestPingSubscription.unsubscribe();
+        if (mRestPingDisposable != null) mRestPingDisposable.dispose();
         super.onDestroy();
     }
 }
