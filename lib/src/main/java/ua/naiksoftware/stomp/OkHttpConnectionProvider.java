@@ -9,6 +9,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
 
+import io.reactivex.BackpressureStrategy;
+import io.reactivex.Flowable;
+import io.reactivex.FlowableEmitter;
 import okhttp3.Headers;
 import okhttp3.OkHttpClient;
 import okhttp3.Request;
@@ -16,8 +19,6 @@ import okhttp3.Response;
 import okhttp3.WebSocket;
 import okhttp3.WebSocketListener;
 import okio.ByteString;
-import rx.Observable;
-import rx.Subscriber;
 
 /* package */ class OkHttpConnectionProvider implements ConnectionProvider {
 
@@ -27,8 +28,8 @@ import rx.Subscriber;
     private final Map<String, String> mConnectHttpHeaders;
     private final OkHttpClient mOkHttpClient;
 
-    private final List<Subscriber<? super LifecycleEvent>> mLifecycleSubscribers;
-    private final List<Subscriber<? super String>> mMessagesSubscribers;
+    private final List<FlowableEmitter<? super LifecycleEvent>> mLifecycleEmitters;
+    private final List<FlowableEmitter<? super String>> mMessagesEmitters;
 
     private WebSocket openedSocked;
 
@@ -36,31 +37,28 @@ import rx.Subscriber;
     /* package */ OkHttpConnectionProvider(String uri, Map<String, String> connectHttpHeaders, OkHttpClient okHttpClient) {
         mUri = uri;
         mConnectHttpHeaders = connectHttpHeaders != null ? connectHttpHeaders : new HashMap<>();
-        mLifecycleSubscribers = new ArrayList<>();
-        mMessagesSubscribers = new ArrayList<>();
+        mLifecycleEmitters = new ArrayList<>();
+        mMessagesEmitters = new ArrayList<>();
         mOkHttpClient = okHttpClient;
     }
 
     @Override
-    public Observable<String> messages() {
-        Observable<String> observable = Observable.<String>create(subscriber -> {
-            mMessagesSubscribers.add(subscriber);
+    public Flowable<String> messages() {
+        Flowable<String> flowable = Flowable.<String>create(mMessagesEmitters::add, BackpressureStrategy.BUFFER)
+            .doOnCancel(() -> {
+                Iterator<FlowableEmitter<? super String>> iterator = mMessagesEmitters.iterator();
+                while (iterator.hasNext()) {
+                    if (iterator.next().isCancelled()) iterator.remove();
+                }
 
-        }).doOnUnsubscribe(() -> {
-            Iterator<Subscriber<? super String>> iterator = mMessagesSubscribers.iterator();
-            while (iterator.hasNext()) {
-                if (iterator.next().isUnsubscribed()) iterator.remove();
-            }
-
-            if (mMessagesSubscribers.size() < 1) {
-                Log.d(TAG, "Close web socket connection now in thread " + Thread.currentThread());
-                openedSocked.close(1000, "");
-                openedSocked = null;
-            }
-        });
-
+                if (mMessagesEmitters.size() < 1) {
+                    Log.d(TAG, "Close web socket connection now in thread " + Thread.currentThread());
+                    openedSocked.close(1000, "");
+                    openedSocked = null;
+                }
+            });
         createWebSocketConnection();
-        return observable;
+        return flowable;
     }
 
     private void createWebSocketConnection() {
@@ -112,29 +110,27 @@ import rx.Subscriber;
     }
 
     @Override
-    public Observable<Void> send(String stompMessage) {
-        return Observable.create(subscriber -> {
+    public Flowable<Void> send(String stompMessage) {
+        return Flowable.create(subscriber -> {
             if (openedSocked == null) {
                 subscriber.onError(new IllegalStateException("Not connected yet"));
             } else {
                 Log.d(TAG, "Send STOMP message: " + stompMessage);
                 openedSocked.send(stompMessage);
-                subscriber.onCompleted();
+                subscriber.onComplete();
             }
-        });
+        }, BackpressureStrategy.BUFFER);
     }
 
     @Override
-    public Observable<LifecycleEvent> getLifecycleReceiver() {
-        return Observable.<LifecycleEvent>create(subscriber -> {
-            mLifecycleSubscribers.add(subscriber);
-
-        }).doOnUnsubscribe(() -> {
-            Iterator<Subscriber<? super LifecycleEvent>> iterator = mLifecycleSubscribers.iterator();
-            while (iterator.hasNext()) {
-                if (iterator.next().isUnsubscribed()) iterator.remove();
-            }
-        });
+    public Flowable<LifecycleEvent> getLifecycleReceiver() {
+        return Flowable.<LifecycleEvent>create(mLifecycleEmitters::add, BackpressureStrategy.BUFFER)
+            .doOnCancel(() -> {
+                Iterator<FlowableEmitter<? super LifecycleEvent>> iterator = mLifecycleEmitters.iterator();
+                while (iterator.hasNext()) {
+                    if (iterator.next().isCancelled()) iterator.remove();
+                }
+            });
     }
 
     private TreeMap<String, String> headersAsMap(Response response) {
@@ -154,14 +150,14 @@ import rx.Subscriber;
 
     private void emitLifecycleEvent(LifecycleEvent lifecycleEvent) {
         Log.d(TAG, "Emit lifecycle event: " + lifecycleEvent.getType().name());
-        for (Subscriber<? super LifecycleEvent> subscriber : mLifecycleSubscribers) {
+        for (FlowableEmitter<? super LifecycleEvent> subscriber : mLifecycleEmitters) {
             subscriber.onNext(lifecycleEvent);
         }
     }
 
     private void emitMessage(String stompMessage) {
         Log.d(TAG, "Emit STOMP message: " + stompMessage);
-        for (Subscriber<? super String> subscriber : mMessagesSubscribers) {
+        for (FlowableEmitter<? super String> subscriber : mMessagesEmitters) {
             subscriber.onNext(stompMessage);
         }
     }

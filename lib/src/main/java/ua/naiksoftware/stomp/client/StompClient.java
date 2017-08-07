@@ -13,10 +13,11 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CopyOnWriteArrayList;
 
-import rx.Observable;
-import rx.Subscriber;
-import rx.Subscription;
-import rx.observables.ConnectableObservable;
+import io.reactivex.BackpressureStrategy;
+import io.reactivex.Flowable;
+import io.reactivex.FlowableEmitter;
+import io.reactivex.disposables.Disposable;
+import io.reactivex.flowables.ConnectableFlowable;
 import ua.naiksoftware.stomp.ConnectionProvider;
 import ua.naiksoftware.stomp.LifecycleEvent;
 import ua.naiksoftware.stomp.StompHeader;
@@ -31,9 +32,9 @@ public class StompClient {
     public static final String SUPPORTED_VERSIONS = "1.1,1.0";
     public static final String DEFAULT_ACK = "auto";
 
-    private Subscription mMessagesSubscription;
-    private Map<String, Set<Subscriber<? super StompMessage>>> mSubscribers = new HashMap<>();
-    private List<ConnectableObservable<Void>> mWaitConnectionObservables;
+    private Disposable mMessagesDisposable;
+    private Map<String, Set<FlowableEmitter<? super StompMessage>>> mEmitters = new HashMap<>();
+    private List<ConnectableFlowable<Void>> mWaitConnectionFlowables;
     private final ConnectionProvider mConnectionProvider;
     private HashMap<String, String> mTopics;
     private boolean mConnected;
@@ -41,7 +42,7 @@ public class StompClient {
 
     public StompClient(ConnectionProvider connectionProvider) {
         mConnectionProvider = connectionProvider;
-        mWaitConnectionObservables = new CopyOnWriteArrayList<>();
+        mWaitConnectionFlowables = new CopyOnWriteArrayList<>();
     }
 
     /**
@@ -96,51 +97,51 @@ public class StompClient {
                 });
 
         isConnecting = true;
-        mMessagesSubscription = mConnectionProvider.messages()
+        mMessagesDisposable = mConnectionProvider.messages()
                 .map(StompMessage::from)
                 .subscribe(stompMessage -> {
                     if (stompMessage.getStompCommand().equals(StompCommand.CONNECTED)) {
                         mConnected = true;
                         isConnecting = false;
-                        for (ConnectableObservable<Void> observable : mWaitConnectionObservables) {
-                            observable.connect();
+                        for (ConnectableFlowable<Void> flowable : mWaitConnectionFlowables) {
+                            flowable.connect();
                         }
-                        mWaitConnectionObservables.clear();
+                        mWaitConnectionFlowables.clear();
                     }
                     callSubscribers(stompMessage);
                 });
     }
 
-    public Observable<Void> send(String destination) {
+    public Flowable<Void> send(String destination) {
         return send(new StompMessage(
                 StompCommand.SEND,
                 Collections.singletonList(new StompHeader(StompHeader.DESTINATION, destination)),
                 null));
     }
 
-    public Observable<Void> send(String destination, String data) {
+    public Flowable<Void> send(String destination, String data) {
         return send(new StompMessage(
                 StompCommand.SEND,
                 Collections.singletonList(new StompHeader(StompHeader.DESTINATION, destination)),
                 data));
     }
 
-    public Observable<Void> send(StompMessage stompMessage) {
-        Observable<Void> observable = mConnectionProvider.send(stompMessage.compile());
+    public Flowable<Void> send(StompMessage stompMessage) {
+        Flowable<Void> flowable = mConnectionProvider.send(stompMessage.compile());
         if (!mConnected) {
-            ConnectableObservable<Void> deffered = observable.publish();
-            mWaitConnectionObservables.add(deffered);
+            ConnectableFlowable<Void> deffered = flowable.publish();
+            mWaitConnectionFlowables.add(deffered);
             return deffered;
         } else {
-            return observable;
+            return flowable;
         }
     }
 
     private void callSubscribers(StompMessage stompMessage) {
         String messageDestination = stompMessage.findHeader(StompHeader.DESTINATION);
-        for (String dest : mSubscribers.keySet()) {
+        for (String dest : mEmitters.keySet()) {
             if (dest.equals(messageDestination)) {
-                for (Subscriber<? super StompMessage> subscriber : mSubscribers.get(dest)) {
+                for (FlowableEmitter<? super StompMessage> subscriber : mEmitters.get(dest)) {
                     subscriber.onNext(stompMessage);
                 }
                 return;
@@ -148,51 +149,51 @@ public class StompClient {
         }
     }
 
-    public Observable<LifecycleEvent> lifecycle() {
+    public Flowable<LifecycleEvent> lifecycle() {
         return mConnectionProvider.getLifecycleReceiver();
     }
 
     public void disconnect() {
-        if (mMessagesSubscription != null) mMessagesSubscription.unsubscribe();
+        if (mMessagesDisposable != null) mMessagesDisposable.dispose();
         mConnected = false;
     }
 
-    public Observable<StompMessage> topic(String destinationPath) {
+    public Flowable<StompMessage> topic(String destinationPath) {
         return topic(destinationPath, null);
     }
 
-    public Observable<StompMessage> topic(String destinationPath, List<StompHeader> headerList) {
-       return Observable.<StompMessage>create(subscriber -> {
-           Set<Subscriber<? super StompMessage>> subscribersSet = mSubscribers.get(destinationPath);
-           if (subscribersSet == null) {
-               subscribersSet = new HashSet<>();
-               mSubscribers.put(destinationPath, subscribersSet);
+    public Flowable<StompMessage> topic(String destinationPath, List<StompHeader> headerList) {
+       return Flowable.<StompMessage>create(emitter -> {
+           Set<FlowableEmitter<? super StompMessage>> emittersSet = mEmitters.get(destinationPath);
+           if (emittersSet == null) {
+               emittersSet = new HashSet<>();
+               mEmitters.put(destinationPath, emittersSet);
                subscribePath(destinationPath, headerList).subscribe();
            }
-           subscribersSet.add(subscriber);
-
-       }).doOnUnsubscribe(() -> {
-           Iterator<String> mapIterator = mSubscribers.keySet().iterator();
-           while (mapIterator.hasNext()) {
-               String destinationUrl = mapIterator.next();
-               Set<Subscriber<? super StompMessage>> set = mSubscribers.get(destinationUrl);
-               Iterator<Subscriber<? super StompMessage>> setIterator = set.iterator();
-               while (setIterator.hasNext()) {
-                   Subscriber<? super StompMessage> subscriber = setIterator.next();
-                   if (subscriber.isUnsubscribed()) {
-                       setIterator.remove();
-                       if (set.size() < 1) {
-                           mapIterator.remove();
-                           unsubscribePath(destinationUrl).subscribe();
+           emittersSet.add(emitter);
+       }, BackpressureStrategy.BUFFER)
+           .doOnCancel(() -> {
+               Iterator<String> mapIterator = mEmitters.keySet().iterator();
+               while (mapIterator.hasNext()) {
+                   String destinationUrl = mapIterator.next();
+                   Set<FlowableEmitter<? super StompMessage>> set = mEmitters.get(destinationUrl);
+                   Iterator<FlowableEmitter<? super StompMessage>> setIterator = set.iterator();
+                   while (setIterator.hasNext()) {
+                       FlowableEmitter<? super StompMessage> subscriber = setIterator.next();
+                       if (subscriber.isCancelled()) {
+                           setIterator.remove();
+                           if (set.size() < 1) {
+                               mapIterator.remove();
+                               unsubscribePath(destinationUrl).subscribe();
+                           }
                        }
                    }
                }
-           }
-       });
+           });
    }
 
-    private Observable<Void> subscribePath(String destinationPath, List<StompHeader> headerList) {
-          if (destinationPath == null) return Observable.empty();
+    private Flowable<Void> subscribePath(String destinationPath, List<StompHeader> headerList) {
+          if (destinationPath == null) return Flowable.empty();
           String topicId = UUID.randomUUID().toString();
 
           if (mTopics == null) mTopics = new HashMap<>();
@@ -207,7 +208,7 @@ public class StompClient {
       }
 
 
-    private Observable<Void> unsubscribePath(String dest) {
+    private Flowable<Void> unsubscribePath(String dest) {
         String topicId = mTopics.get(dest);
         Log.d(TAG, "Unsubscribe path: " + dest + " id: " + topicId);
 
