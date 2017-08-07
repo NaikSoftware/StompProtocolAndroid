@@ -13,11 +13,13 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CopyOnWriteArrayList;
 
+import java8.util.concurrent.CompletableFuture;
 import rx.Completable;
 import rx.Observable;
 import rx.Subscriber;
 import rx.Subscription;
 import rx.observables.ConnectableObservable;
+import rx.schedulers.Schedulers;
 import rx.subjects.PublishSubject;
 import ua.naiksoftware.stomp.ConnectionProvider;
 import ua.naiksoftware.stomp.LifecycleEvent;
@@ -37,18 +39,23 @@ public class StompClient {
     private Subscription mMessagesSubscription;
     private Map<String, Set<Subscriber<? super StompMessage>>> mSubscribers = new HashMap<>();
     */
-    private List<Completable> mWaitConnectionCompletables;
+//    private List<Completable> mWaitConnectionCompletables;
     private final ConnectionProvider mConnectionProvider;
     private HashMap<String, String> mTopics;
     private boolean mConnected;
     private boolean isConnecting;
 
     private PublishSubject<StompMessage> mMessageStream;
+    private CompletableFuture<Boolean> connectionStatus;
+    private Completable waitForConnect;
 
     public StompClient(ConnectionProvider connectionProvider) {
         mConnectionProvider = connectionProvider;
-        mWaitConnectionCompletables = new CopyOnWriteArrayList<>();
+//        mWaitConnectionCompletables = new CopyOnWriteArrayList<>();
         mMessageStream = PublishSubject.create();
+        connectionStatus = new CompletableFuture<>();
+        waitForConnect = Completable.fromFuture(connectionStatus).subscribeOn(Schedulers.newThread());
+        waitForConnect.subscribe(() -> Log.d(TAG, "waitForConnect completed"));
     }
 
     /**
@@ -87,7 +94,7 @@ public class StompClient {
                             headers.add(new StompHeader(StompHeader.VERSION, SUPPORTED_VERSIONS));
                             if (_headers != null) headers.addAll(_headers);
                             mConnectionProvider.send(new StompMessage(StompCommand.CONNECT, headers, null).compile())
-                                    .subscribe();
+                                    .subscribe(() -> Log.d(TAG, "CONNECT command sent!"));
                             break;
 
                         case CLOSED:
@@ -110,18 +117,18 @@ public class StompClient {
                 .subscribe(stompMessage -> {
                     mConnected = true;
                     isConnecting = false;
+                    connectionStatus.complete(true);
+                    /*
                     for (Completable completable : mWaitConnectionCompletables) {
                         completable.subscribe();
                     }
                     mWaitConnectionCompletables.clear();
+                    */
                 });
     }
 
     public Completable send(String destination) {
-        return send(new StompMessage(
-                StompCommand.SEND,
-                Collections.singletonList(new StompHeader(StompHeader.DESTINATION, destination)),
-                null));
+        return send(destination, null);
     }
 
     public Completable send(String destination, String data) {
@@ -133,10 +140,13 @@ public class StompClient {
 
     public Completable send(StompMessage stompMessage) {
         Completable completable = mConnectionProvider.send(stompMessage.compile());
+        /*
         if (!mConnected) {
             mWaitConnectionCompletables.add(completable);
         }
-        return completable;
+        */
+        waitForConnect.subscribe(() -> Log.d(TAG, "SEND waitForConnect complete, continuing!"));
+        return completable.startWith(waitForConnect);
     }
 
     /*
@@ -177,7 +187,7 @@ public class StompClient {
         else
             ret = mMessageStream
                 .filter(msg -> destPath.equals(msg.findHeader(StompHeader.DESTINATION)))
-                .doOnSubscribe(() -> subscribePath(destPath, headerList));
+                .doOnSubscribe(() -> subscribePath(destPath, headerList).subscribe());
         // still need to figure out how to do the unsubscribes reactively... more difficult than it sounds
         return ret;
     }
