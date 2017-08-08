@@ -4,7 +4,7 @@
 
 ## Overview
 
-**Note that this is a FORK of a project by NaikSoftware! This version is purely to avoid using RetroLambda!**
+**Note that this is a FORK of a project by NaikSoftware! This version is made to avoid using RetroLambda! (Scroll down to see other changes)**
 
 This library provides support for [STOMP protocol](https://stomp.github.io/) over Websockets.
 
@@ -19,7 +19,7 @@ repositories {
     maven { url "https://jitpack.io" }
 }
 dependencies {
-    compile 'com.github.forresthopkinsa:StompProtocolAndroid:{latest version}'
+    compile 'com.github.forresthopkinsa:StompProtocolAndroid:1.4.0'
 }
 ```
 
@@ -29,10 +29,16 @@ You can use this library two ways:
   - If you have Java 8 compatiblity and Jack enabled, this library will work for you
 - Using the new Native Java 8 support
   - As of this writing, you must be using Android Studio Canary to use this feature.
+  - Has been tested in the following environments:
+    - Canary 9, Gradle plugin v3.0.0-alpha9
+    - Canary 8, Gradle plugin v3.0.0-alpha8
+  - It *should* work in all 3.0.0+ versions
   - You can find more info on the [Releases Page](https://github.com/forresthopkinsa/StompProtocolAndroid/releases)
 
 However, *this fork is NOT compatible with Retrolambda.*
 If you have RL as a dependency, then you should be using the [upstream version](https://github.com/NaikSoftware/StompProtocolAndroid) of this project!
+
+Finally, please take bugs and questions to the [Issues page](https://github.com/forresthopkinsa/StompProtocolAndroid/issues)! I'll try to answer within one business day.
 
 ## Example backend (Spring Boot)
 
@@ -71,7 +77,7 @@ class SocketController {
 }
 ```
 
-Check out the full example server https://github.com/NaikSoftware/stomp-protocol-example-server
+Check out the [full example server](https://github.com/NaikSoftware/stomp-protocol-example-server)
 
 ## Example library usage
 
@@ -104,7 +110,7 @@ Check out the full example server https://github.com/NaikSoftware/stomp-protocol
 
 ```
 
-See the full example https://github.com/NaikSoftware/StompProtocolAndroid/tree/master/example-client
+See the [full example](https://github.com/NaikSoftware/StompProtocolAndroid/tree/master/example-client)
 
 Method `Stomp.over` consume class for create connection as first parameter.
 You must provide dependency for lib and pass class.
@@ -134,7 +140,7 @@ client.lifecycle().subscribe(lifecycleEvent -> {
 
 **Custom client**
 
-You can use a custom OkHttpClient (for example, [if you want to allow untrusted HTTPS](getUnsafeOkHttpClient())) using the four-argument overload of Stomp.over, like so:
+You can use a custom OkHttpClient (for example, [if you want to allow untrusted HTTPS](https://gist.github.com/grow2014/b6969d8f0cfc0f0a1b2bf12f84973dec)) using the four-argument overload of Stomp.over, like so:
 
 ``` java
 client = Stomp.over(WebSocket.class, address, null, getUnsafeOkHttpClient());

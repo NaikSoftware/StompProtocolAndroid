@@ -1,6 +1,6 @@
 package ua.naiksoftware.stomp;
 
-import org.java_websocket.WebSocket;
+import android.support.annotation.Nullable;
 
 import java.util.Map;
 
@@ -19,19 +19,19 @@ import ua.naiksoftware.stomp.client.StompClient;
  */
 public class Stomp {
 
-    public static StompClient over(Class clazz, String uri) {
-        return over(clazz, uri, null, null);
+    public static StompClient over(Transport transport, String uri) {
+        return over(transport, uri, null, null);
     }
 
     /**
      *
-     * @param clazz class for using as transport
+     * @param transport transport method
      * @param uri URI to connect
      * @param connectHttpHeaders HTTP headers, will be passed with handshake query, may be null
      * @return StompClient for receiving and sending messages. Call #StompClient.connect
      */
-    public static StompClient over(Class clazz, String uri, Map<String, String> connectHttpHeaders) {
-        return over(clazz, uri, connectHttpHeaders, null);
+    public static StompClient over(Transport transport, String uri, Map<String, String> connectHttpHeaders) {
+        return over(transport, uri, connectHttpHeaders, null);
     }
 
     /**
@@ -40,49 +40,32 @@ public class Stomp {
      *     <li>{@code org.java_websocket.WebSocket}: cannot accept an existing client</li>
      *     <li>{@code okhttp3.WebSocket}: can accept a non-null instance of {@code okhttp3.OkHttpClient}</li>
      * </ul>
-     * @param clazz class for using as transport
+     * @param transport transport method
      * @param uri URI to connect
      * @param connectHttpHeaders HTTP headers, will be passed with handshake query, may be null
-     * @param webSocketClient Existing client that will be used to open the WebSocket connection, may be null to use default client
+     * @param okHttpClient Existing client that will be used to open the WebSocket connection, may be null to use default client
      * @return StompClient for receiving and sending messages. Call #StompClient.connect
      */
-    public static StompClient over(Class clazz, String uri, Map<String, String> connectHttpHeaders, Object webSocketClient) {
-        try {
-            if (Class.forName("org.java_websocket.WebSocket") != null && clazz == WebSocket.class) {
-
-                if (webSocketClient != null) {
-                    throw new IllegalArgumentException("You cannot pass a webSocketClient with 'org.java_websocket.WebSocket'. use null instead.");
-                }
-
-                return createStompClient(new WebSocketsConnectionProvider(uri, connectHttpHeaders));
+    public static StompClient over(Transport transport, String uri, @Nullable Map<String, String> connectHttpHeaders, @Nullable OkHttpClient okHttpClient) {
+        if (transport == Transport.JWS) {
+            if (okHttpClient != null) {
+                throw new IllegalArgumentException("You cannot pass a webSocketClient with 'org.java_websocket.WebSocket'. use null instead.");
             }
-        } catch (ClassNotFoundException e) {}
-        try {
-            if (Class.forName("okhttp3.WebSocket") != null && clazz == okhttp3.WebSocket.class) {
+            return createStompClient(new WebSocketsConnectionProvider(uri, connectHttpHeaders));
+        }
 
-                OkHttpClient okHttpClient = getOkHttpClient(webSocketClient);
+        if (transport == Transport.OKHTTP) {
+            return createStompClient(new OkHttpConnectionProvider(uri, connectHttpHeaders, (okHttpClient == null) ? new OkHttpClient() : okHttpClient));
+        }
 
-                return createStompClient(new OkHttpConnectionProvider(uri, connectHttpHeaders, okHttpClient));
-            }
-        } catch (ClassNotFoundException e) {}
-
-        throw new RuntimeException("Not supported overlay transport: " + clazz.getName());
+        throw new IllegalArgumentException("Transport type not supported: " + transport.toString());
     }
 
     private static StompClient createStompClient(ConnectionProvider connectionProvider) {
         return new StompClient(connectionProvider);
     }
 
-    private static OkHttpClient getOkHttpClient(Object webSocketClient) {
-        if (webSocketClient != null) {
-            if (webSocketClient instanceof OkHttpClient) {
-                return (OkHttpClient) webSocketClient;
-            } else {
-                throw new IllegalArgumentException("You must pass a non-null instance of an 'okhttp3.OkHttpClient'. Or pass null to use a default websocket client.");
-            }
-        } else {
-            // default http client
-            return new OkHttpClient();
-        }
+    public enum Transport {
+        OKHTTP, JWS
     }
 }

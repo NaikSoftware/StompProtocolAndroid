@@ -1,7 +1,7 @@
 apply plugin: 'com.android.library'
 apply plugin: 'com.github.dcendents.android-maven'
 
-group='com.github.NaikSoftware'
+group='com.github.forresthopkinsa'
 
 android {
     compileSdkVersion 25
@@ -37,6 +37,7 @@ dependencies {
     // Supported transports
     compile 'org.java-websocket:java-websocket:1.3.2'
     compile 'com.squareup.okhttp3:okhttp:3.8.1'
+    implementation 'com.android.support:support-annotations:24.2.0'
 }
 
 task sourcesJar(type: Jar) {
