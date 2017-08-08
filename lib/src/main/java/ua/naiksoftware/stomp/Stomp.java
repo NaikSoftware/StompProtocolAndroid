@@ -9,8 +9,8 @@ import ua.naiksoftware.stomp.client.StompClient;
 
 /**
  * Supported overlays:
- *  - org.java_websocket.WebSocket ('org.java-websocket:Java-WebSocket:1.3.0')
- *  - okhttp3.WebSocket ('com.squareup.okhttp3:okhttp:3.8.0')
+ *  - org.java_websocket.WebSocket ('org.java-websocket:Java-WebSocket:1.3.2')
+ *  - okhttp3.WebSocket ('com.squareup.okhttp3:okhttp:3.8.1')
  *
  *  You can add own relay, just implement ConnectionProvider for you stomp transport,
  *  such as web socket.

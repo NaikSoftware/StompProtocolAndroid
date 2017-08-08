@@ -19,14 +19,12 @@ import javax.net.ssl.SSLContext;
 import javax.net.ssl.SSLSocketFactory;
 
 import rx.Completable;
-import rx.Observable;
-import rx.subjects.PublishSubject;
 
 /**
  * Created by naik on 05.05.16.
  */
 
-class WebSocketsConnectionProvider implements ConnectionProvider {
+class WebSocketsConnectionProvider extends AbstractConnectionProvider {
 
     private static final String TAG = WebSocketsConnectionProvider.class.getSimpleName();
 
@@ -37,9 +35,6 @@ class WebSocketsConnectionProvider implements ConnectionProvider {
     private boolean haveConnection;
     private TreeMap<String, String> mServerHandshakeHeaders;
 
-    private final PublishSubject<LifecycleEvent> mLifecycleStream;
-    private final PublishSubject<String> mMessagesStream;
-
     /**
      * Support UIR scheme ws://host:port/path
      * @param connectHttpHeaders may be null
@@ -47,15 +42,6 @@ class WebSocketsConnectionProvider implements ConnectionProvider {
     WebSocketsConnectionProvider(String uri, Map<String, String> connectHttpHeaders) {
         mUri = uri;
         mConnectHttpHeaders = connectHttpHeaders != null ? connectHttpHeaders : new HashMap<>();
-
-        mLifecycleStream = PublishSubject.create();
-        mMessagesStream = PublishSubject.create();
-    }
-
-    @Override
-    public Observable<String> messages() {
-        createWebSocketConnection();
-        return mMessagesStream;
     }
 
     @Override
@@ -63,7 +49,8 @@ class WebSocketsConnectionProvider implements ConnectionProvider {
         return Completable.fromAction(() -> mWebSocketClient.close());
     }
 
-    private void createWebSocketConnection() {
+    @Override
+    void createWebSocketConnection() {
         if (haveConnection)
             throw new IllegalStateException("Already have connection to web socket");
 
@@ -124,30 +111,12 @@ class WebSocketsConnectionProvider implements ConnectionProvider {
     }
 
     @Override
-    public Completable send(String stompMessage) {
-        return Completable.fromCallable(() -> {
-            if (mWebSocketClient == null) {
-                throw new IllegalStateException("Not connected yet");
-            } else {
-                Log.d(TAG, "Send STOMP message: " + stompMessage);
-                mWebSocketClient.send(stompMessage);
-                return null;
-            }
-        });
-    }
-
-    private void emitLifecycleEvent(LifecycleEvent lifecycleEvent) {
-        Log.d(TAG, "Emit lifecycle event: " + lifecycleEvent.getType().name());
-        mLifecycleStream.onNext(lifecycleEvent);
-    }
-
-    private void emitMessage(String stompMessage) {
-        Log.d(TAG, "Emit STOMP message: " + stompMessage);
-        mMessagesStream.onNext(stompMessage);
+    void bareSend(String stompMessage) {
+        mWebSocketClient.send(stompMessage);
     }
 
     @Override
-    public Observable<LifecycleEvent> getLifecycleReceiver() {
-        return mLifecycleStream;
+    Object getSocket() {
+        return mWebSocketClient;
     }
 }
