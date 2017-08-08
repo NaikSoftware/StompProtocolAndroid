@@ -48,6 +48,7 @@ public class StompClient {
     private PublishSubject<StompMessage> mMessageStream;
     private CompletableFuture<Boolean> connectionStatus;
     private Completable waitForConnect;
+    private HashMap<String, Observable<StompMessage>> msgStreams;
 
     public StompClient(ConnectionProvider connectionProvider) {
         mConnectionProvider = connectionProvider;
@@ -56,6 +57,7 @@ public class StompClient {
         connectionStatus = new CompletableFuture<>();
         waitForConnect = Completable.fromFuture(connectionStatus).subscribeOn(Schedulers.newThread());
         waitForConnect.subscribe(() -> Log.d(TAG, "waitForConnect completed"));
+        msgStreams = new HashMap<>();
     }
 
     /**
@@ -180,16 +182,17 @@ public class StompClient {
     }
 
     public Observable<StompMessage> topic(String destPath, List<StompHeader> headerList) {
-        Observable<StompMessage> ret;
-
         if (destPath == null)
-            ret = Observable.error(new IllegalArgumentException("Topic path cannot be null"));
-        else
-            ret = mMessageStream
-                .filter(msg -> destPath.equals(msg.findHeader(StompHeader.DESTINATION)))
-                .doOnSubscribe(() -> subscribePath(destPath, headerList).subscribe());
-        // still need to figure out how to do the unsubscribes reactively... more difficult than it sounds
-        return ret;
+            return Observable.error(new IllegalArgumentException("Topic path cannot be null"));
+        else if (!msgStreams.containsKey(destPath))
+            msgStreams.put(destPath,
+                    mMessageStream
+                            .filter(msg -> destPath.equals(msg.findHeader(StompHeader.DESTINATION)))
+                            .doOnSubscribe(() -> subscribePath(destPath, headerList).subscribe())
+                            .doOnUnsubscribe(() -> unsubscribePath(destPath).subscribe())
+                            .share()
+            );
+        return msgStreams.get(destPath);
     }
 
     /*
@@ -253,8 +256,10 @@ public class StompClient {
         if (mTopics == null) mTopics = new HashMap<>();
 
         // Only continue if we don't already have a subscription to the topic
-        if (mTopics.containsKey(destinationPath))
+        if (mTopics.containsKey(destinationPath)) {
+            Log.d(TAG, "Attempted to subscribe to already-subscribed path!");
             return Completable.complete();
+        }
 
         mTopics.put(destinationPath, topicId);
         List<StompHeader> headers = new ArrayList<>();
@@ -268,6 +273,8 @@ public class StompClient {
 
 
     private Completable unsubscribePath(String dest) {
+        msgStreams.remove(dest);
+
         String topicId = mTopics.get(dest);
         Log.d(TAG, "Unsubscribe path: " + dest + " id: " + topicId);
 
