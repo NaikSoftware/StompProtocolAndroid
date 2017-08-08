@@ -1,5 +1,6 @@
 package ua.naiksoftware.stomp;
 
+import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
 
 import java.util.Map;
@@ -19,19 +20,19 @@ import ua.naiksoftware.stomp.client.StompClient;
  */
 public class Stomp {
 
-    public static StompClient over(Transport transport, String uri) {
-        return over(transport, uri, null, null);
+    public static StompClient over(@NonNull ConnectionProvider connectionProvider, String uri) {
+        return over(connectionProvider, uri, null, null);
     }
 
     /**
      *
-     * @param transport transport method
+     * @param connectionProvider connectionProvider method
      * @param uri URI to connect
      * @param connectHttpHeaders HTTP headers, will be passed with handshake query, may be null
      * @return StompClient for receiving and sending messages. Call #StompClient.connect
      */
-    public static StompClient over(Transport transport, String uri, Map<String, String> connectHttpHeaders) {
-        return over(transport, uri, connectHttpHeaders, null);
+    public static StompClient over(@NonNull ConnectionProvider connectionProvider, String uri, Map<String, String> connectHttpHeaders) {
+        return over(connectionProvider, uri, connectHttpHeaders, null);
     }
 
     /**
@@ -40,32 +41,32 @@ public class Stomp {
      *     <li>{@code org.java_websocket.WebSocket}: cannot accept an existing client</li>
      *     <li>{@code okhttp3.WebSocket}: can accept a non-null instance of {@code okhttp3.OkHttpClient}</li>
      * </ul>
-     * @param transport transport method
+     * @param connectionProvider connectionProvider method
      * @param uri URI to connect
      * @param connectHttpHeaders HTTP headers, will be passed with handshake query, may be null
      * @param okHttpClient Existing client that will be used to open the WebSocket connection, may be null to use default client
      * @return StompClient for receiving and sending messages. Call #StompClient.connect
      */
-    public static StompClient over(Transport transport, String uri, @Nullable Map<String, String> connectHttpHeaders, @Nullable OkHttpClient okHttpClient) {
-        if (transport == Transport.JWS) {
+    public static StompClient over(@NonNull ConnectionProvider connectionProvider, String uri, @Nullable Map<String, String> connectHttpHeaders, @Nullable OkHttpClient okHttpClient) {
+        if (connectionProvider == ConnectionProvider.JWS) {
             if (okHttpClient != null) {
                 throw new IllegalArgumentException("You cannot pass a webSocketClient with 'org.java_websocket.WebSocket'. use null instead.");
             }
             return createStompClient(new WebSocketsConnectionProvider(uri, connectHttpHeaders));
         }
 
-        if (transport == Transport.OKHTTP) {
+        if (connectionProvider == ConnectionProvider.OKHTTP) {
             return createStompClient(new OkHttpConnectionProvider(uri, connectHttpHeaders, (okHttpClient == null) ? new OkHttpClient() : okHttpClient));
         }
 
-        throw new IllegalArgumentException("Transport type not supported: " + transport.toString());
+        throw new IllegalArgumentException("ConnectionProvider type not supported: " + connectionProvider.toString());
     }
 
-    private static StompClient createStompClient(ConnectionProvider connectionProvider) {
+    private static StompClient createStompClient(ua.naiksoftware.stomp.ConnectionProvider connectionProvider) {
         return new StompClient(connectionProvider);
     }
 
-    public enum Transport {
+    public enum ConnectionProvider {
         OKHTTP, JWS
     }
 }

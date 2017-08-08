@@ -1,5 +1,8 @@
 package ua.naiksoftware.stomp.client;
 
+import android.support.annotation.NonNull;
+import android.support.annotation.Nullable;
+
 import java.io.StringReader;
 import java.util.ArrayList;
 import java.util.List;
@@ -40,6 +43,7 @@ public class StompMessage {
         return mStompCommand;
     }
 
+    @Nullable
     public String findHeader(String key) {
         if (mStompHeaders == null) return null;
         for (StompHeader header : mStompHeaders) {
@@ -48,6 +52,7 @@ public class StompMessage {
         return null;
     }
 
+    @NonNull
     public String compile() {
         StringBuilder builder = new StringBuilder();
         builder.append(mStompCommand).append('\n');
@@ -62,7 +67,7 @@ public class StompMessage {
         return builder.toString();
     }
 
-    public static StompMessage from(String data) {
+    public static StompMessage from(@Nullable String data) {
         if (data == null || data.trim().isEmpty()) {
             return new StompMessage(StompCommand.UNKNOWN, null, data);
         }

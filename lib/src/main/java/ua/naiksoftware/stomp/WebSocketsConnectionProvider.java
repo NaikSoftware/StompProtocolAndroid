@@ -1,5 +1,7 @@
 package ua.naiksoftware.stomp;
 
+import android.support.annotation.NonNull;
+import android.support.annotation.Nullable;
 import android.util.Log;
 
 import org.java_websocket.WebSocket;
@@ -29,6 +31,7 @@ class WebSocketsConnectionProvider extends AbstractConnectionProvider {
     private static final String TAG = WebSocketsConnectionProvider.class.getSimpleName();
 
     private final String mUri;
+    @NonNull
     private final Map<String, String> mConnectHttpHeaders;
 
     private WebSocketClient mWebSocketClient;
@@ -39,11 +42,12 @@ class WebSocketsConnectionProvider extends AbstractConnectionProvider {
      * Support UIR scheme ws://host:port/path
      * @param connectHttpHeaders may be null
      */
-    WebSocketsConnectionProvider(String uri, Map<String, String> connectHttpHeaders) {
+    WebSocketsConnectionProvider(String uri, @Nullable Map<String, String> connectHttpHeaders) {
         mUri = uri;
         mConnectHttpHeaders = connectHttpHeaders != null ? connectHttpHeaders : new HashMap<>();
     }
 
+    @NonNull
     @Override
     public Completable disconnect() {
         return Completable.fromAction(() -> mWebSocketClient.close());
@@ -57,7 +61,7 @@ class WebSocketsConnectionProvider extends AbstractConnectionProvider {
         mWebSocketClient = new WebSocketClient(URI.create(mUri), new Draft_17(), mConnectHttpHeaders, 0) {
 
             @Override
-            public void onWebsocketHandshakeReceivedAsClient(WebSocket conn, ClientHandshake request, ServerHandshake response) throws InvalidDataException {
+            public void onWebsocketHandshakeReceivedAsClient(WebSocket conn, ClientHandshake request, @NonNull ServerHandshake response) throws InvalidDataException {
                 Log.d(TAG, "onWebsocketHandshakeReceivedAsClient with response: " + response.getHttpStatus() + " " + response.getHttpStatusMessage());
                 mServerHandshakeHeaders = new TreeMap<>();
                 Iterator<String> keys = response.iterateHttpFields();
@@ -68,7 +72,7 @@ class WebSocketsConnectionProvider extends AbstractConnectionProvider {
             }
 
             @Override
-            public void onOpen(ServerHandshake handshakeData) {
+            public void onOpen(@NonNull ServerHandshake handshakeData) {
                 Log.d(TAG, "onOpen with handshakeData: " + handshakeData.getHttpStatus() + " " + handshakeData.getHttpStatusMessage());
                 LifecycleEvent openEvent = new LifecycleEvent(LifecycleEvent.Type.OPENED);
                 openEvent.setHandshakeResponseHeaders(mServerHandshakeHeaders);

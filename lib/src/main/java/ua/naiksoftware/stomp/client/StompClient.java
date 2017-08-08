@@ -1,5 +1,7 @@
 package ua.naiksoftware.stomp.client;
 
+import android.support.annotation.NonNull;
+import android.support.annotation.Nullable;
 import android.util.Log;
 
 import java.util.ArrayList;
@@ -70,7 +72,7 @@ public class StompClient {
      *
      * @param _headers might be null
      */
-    public void connect(List<StompHeader> _headers, boolean reconnect) {
+    public void connect(@Nullable List<StompHeader> _headers, boolean reconnect) {
         if (reconnect) disconnect();
         if (mConnected) return;
         lifecycle()
@@ -119,7 +121,7 @@ public class StompClient {
                 data));
     }
 
-    public Completable send(StompMessage stompMessage) {
+    public Completable send(@NonNull StompMessage stompMessage) {
         Completable completable = mConnectionProvider.send(stompMessage.compile());
         mConnectionComplete.subscribe();
         return completable.startWith(mConnectionComplete);
@@ -141,7 +143,7 @@ public class StompClient {
         return topic(destinationPath, null);
     }
 
-    public Observable<StompMessage> topic(String destPath, List<StompHeader> headerList) {
+    public Observable<StompMessage> topic(@Nullable String destPath, List<StompHeader> headerList) {
         if (destPath == null)
             return Observable.error(new IllegalArgumentException("Topic path cannot be null"));
         else if (!mStreamMap.containsKey(destPath))
@@ -155,7 +157,7 @@ public class StompClient {
         return mStreamMap.get(destPath);
     }
 
-    private Completable subscribePath(String destinationPath, List<StompHeader> headerList) {
+    private Completable subscribePath(String destinationPath, @Nullable List<StompHeader> headerList) {
         String topicId = UUID.randomUUID().toString();
 
         if (mTopics == null) mTopics = new HashMap<>();

@@ -1,5 +1,7 @@
 package ua.naiksoftware.stomp;
 
+import android.support.annotation.NonNull;
+import android.support.annotation.Nullable;
 import android.util.Log;
 
 import rx.Completable;
@@ -16,7 +18,9 @@ abstract class AbstractConnectionProvider implements ConnectionProvider {
 
     private static final String TAG = AbstractConnectionProvider.class.getSimpleName();
 
+    @NonNull
     private final PublishSubject<LifecycleEvent> mLifecycleStream;
+    @NonNull
     private final PublishSubject<String> mMessagesStream;
 
     AbstractConnectionProvider() {
@@ -24,6 +28,7 @@ abstract class AbstractConnectionProvider implements ConnectionProvider {
         mMessagesStream = PublishSubject.create();
     }
 
+    @NonNull
     @Override
     public Observable<String> messages() {
         createWebSocketConnection();
@@ -48,6 +53,7 @@ abstract class AbstractConnectionProvider implements ConnectionProvider {
      */
     abstract void createWebSocketConnection();
 
+    @NonNull
     @Override
     public Completable send(String stompMessage) {
         return Completable.fromCallable(() -> {
@@ -82,9 +88,10 @@ abstract class AbstractConnectionProvider implements ConnectionProvider {
      * return webSocket;
      * </pre>
      */
+    @Nullable
     abstract Object getSocket();
 
-    void emitLifecycleEvent(LifecycleEvent lifecycleEvent) {
+    void emitLifecycleEvent(@NonNull LifecycleEvent lifecycleEvent) {
         Log.d(TAG, "Emit lifecycle event: " + lifecycleEvent.getType().name());
         mLifecycleStream.onNext(lifecycleEvent);
     }
@@ -94,6 +101,7 @@ abstract class AbstractConnectionProvider implements ConnectionProvider {
         mMessagesStream.onNext(stompMessage);
     }
 
+    @NonNull
     @Override
     public Observable<LifecycleEvent> getLifecycleReceiver() {
         return mLifecycleStream;

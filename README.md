@@ -77,7 +77,7 @@ class SocketController {
 }
 ```
 
-Check out the [full example server](https://github.com/NaikSoftware/stomp-protocol-example-server)
+Check out the [upstream example server](https://github.com/NaikSoftware/stomp-protocol-example-server)
 
 ## Example library usage
 
@@ -91,7 +91,7 @@ Check out the [full example server](https://github.com/NaikSoftware/stomp-protoc
  
  // ...
  
- StompClient client = Stomp.over(WebSocket.class, "http://localhost/example-endpoint");
+ StompClient client = Stomp.over(Stomp.ConnectionProvider.OKHTTP, "http://localhost/example-endpoint");
  client.connect();
   
  client.topic("/topic/greetings").subscribe(message -> {
@@ -110,13 +110,13 @@ Check out the [full example server](https://github.com/NaikSoftware/stomp-protoc
 
 ```
 
-See the [full example](https://github.com/NaikSoftware/StompProtocolAndroid/tree/master/example-client)
+See the [upstream example](https://github.com/NaikSoftware/StompProtocolAndroid/tree/master/example-client)
 
-Method `Stomp.over` consume class for create connection as first parameter.
-You must provide dependency for lib and pass class.
-At now supported connection providers:
-- `org.java_websocket.WebSocket.class` ('org.java-websocket:Java-WebSocket:1.3.2')
-- `okhttp3.WebSocket.class` ('com.squareup.okhttp3:okhttp:3.8.1')
+Method `Stomp.over` uses an enum to know what connection provider to use.
+
+Currently supported connection providers:
+- `Stomp.ConnectionProvider.JWS` ('org.java-websocket:Java-WebSocket:1.3.2')
+- `Stomp.ConnectionProvider.OKHTTP` ('com.squareup.okhttp3:okhttp:3.8.1')
 
 You can add own connection provider. Just implement interface `ConnectionProvider`.
 If you implement new provider, please create pull request :)
@@ -143,7 +143,7 @@ client.lifecycle().subscribe(lifecycleEvent -> {
 You can use a custom OkHttpClient (for example, [if you want to allow untrusted HTTPS](https://gist.github.com/grow2014/b6969d8f0cfc0f0a1b2bf12f84973dec)) using the four-argument overload of Stomp.over, like so:
 
 ``` java
-client = Stomp.over(WebSocket.class, address, null, getUnsafeOkHttpClient());
+client = Stomp.over(Stomp.ConnectionProvider.OKHTTP, address, null, getUnsafeOkHttpClient());
 ```
 
 Yes, it's safe to pass `null` for either (or both) of the last two arguments. That's exactly what the shorter overloads do.
@@ -222,6 +222,9 @@ These are the possible changes you need to make to your code for this branch, if
 - Passing null as the topic path now throws an exception
   - Previously, it was supposed to silently fail, although it would probably hit a NPE first (untested)
   - Now it throws an IllegalArgumentException
+- Connection Provider is selected by an enum
+  - It used to be done by passing it a WebSocket class from either JWS or OkHttp
+  - New way of using it can be seen in the examples above
 
 ## Additional Reading
 
