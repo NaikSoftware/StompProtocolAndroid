@@ -41,8 +41,11 @@ import io.reactivex.FlowableEmitter;
     private boolean haveConnection;
     private TreeMap<String, String> mServerHandshakeHeaders;
 
+    private final Object mLifecycleLock = new Object();
+
     /**
      * Support UIR scheme ws://host:port/path
+     *
      * @param connectHttpHeaders may be null
      */
     /* package */ WebSocketsConnectionProvider(String uri, Map<String, String> connectHttpHeaders) {
@@ -55,17 +58,17 @@ import io.reactivex.FlowableEmitter;
     @Override
     public Flowable<String> messages() {
         Flowable<String> flowable = Flowable.<String>create(mMessagesEmitters::add, BackpressureStrategy.BUFFER)
-            .doOnCancel(() -> {
-                Iterator<FlowableEmitter<? super String>> iterator = mMessagesEmitters.iterator();
-                while (iterator.hasNext()) {
-                    if (iterator.next().isCancelled()) iterator.remove();
-                }
+                .doOnCancel(() -> {
+                    Iterator<FlowableEmitter<? super String>> iterator = mMessagesEmitters.iterator();
+                    while (iterator.hasNext()) {
+                        if (iterator.next().isCancelled()) iterator.remove();
+                    }
 
-                if (mMessagesEmitters.size() < 1) {
-                    Log.d(TAG, "Close web socket connection now in thread " + Thread.currentThread());
-                    mWebSocketClient.close();
-                }
-            });
+                    if (mMessagesEmitters.size() < 1) {
+                        Log.d(TAG, "Close web socket connection now in thread " + Thread.currentThread());
+                        mWebSocketClient.close();
+                    }
+                });
         createWebSocketConnection();
         return flowable;
     }
@@ -115,7 +118,7 @@ import io.reactivex.FlowableEmitter;
             }
         };
 
-        if(mUri.startsWith("wss")) {
+        if (mUri.startsWith("wss")) {
             try {
                 SSLContext sc = SSLContext.getInstance("TLS");
                 sc.init(null, null, null);
@@ -144,9 +147,11 @@ import io.reactivex.FlowableEmitter;
     }
 
     private void emitLifecycleEvent(LifecycleEvent lifecycleEvent) {
-        Log.d(TAG, "Emit lifecycle event: " + lifecycleEvent.getType().name());
-        for (FlowableEmitter<? super LifecycleEvent> emitter : mLifecycleEmitters) {
-            emitter.onNext(lifecycleEvent);
+        synchronized (mLifecycleLock) {
+            Log.d(TAG, "Emit lifecycle event: " + lifecycleEvent.getType().name());
+            for (FlowableEmitter<? super LifecycleEvent> emitter : mLifecycleEmitters) {
+                emitter.onNext(lifecycleEvent);
+            }
         }
     }
 
@@ -160,11 +165,13 @@ import io.reactivex.FlowableEmitter;
     @Override
     public Flowable<LifecycleEvent> getLifecycleReceiver() {
         return Flowable.<LifecycleEvent>create(mLifecycleEmitters::add, BackpressureStrategy.BUFFER)
-            .doOnCancel(() -> {
-                Iterator<FlowableEmitter<? super LifecycleEvent>> iterator = mLifecycleEmitters.iterator();
-                while (iterator.hasNext()) {
-                 if (iterator.next().isCancelled()) iterator.remove();
-                }
-            });
+                .doOnCancel(() -> {
+                    synchronized (mLifecycleLock) {
+                        Iterator<FlowableEmitter<? super LifecycleEvent>> iterator = mLifecycleEmitters.iterator();
+                        while (iterator.hasNext()) {
+                            if (iterator.next().isCancelled()) iterator.remove();
+                        }
+                    }
+                });
     }
 }
