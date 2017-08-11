@@ -29,6 +29,7 @@ public class StompClient {
     public static final String SUPPORTED_VERSIONS = "1.1,1.0";
     public static final String DEFAULT_ACK = "auto";
 
+    private final String tag = StompClient.class.getSimpleName();
     private final ConnectionProvider mConnectionProvider;
     private HashMap<String, String> mTopics;
     private boolean mConnected;
@@ -42,9 +43,13 @@ public class StompClient {
     public StompClient(ConnectionProvider connectionProvider) {
         mConnectionProvider = connectionProvider;
         mMessageStream = PublishSubject.create();
+        mStreamMap = new HashMap<>();
+        resetStatus();
+    }
+
+    private void resetStatus() {
         mConnectionFuture = new CompletableFuture<>();
         mConnectionComplete = Completable.fromFuture(mConnectionFuture).subscribeOn(Schedulers.newThread());
-        mStreamMap = new HashMap<>();
     }
 
     /**
@@ -61,7 +66,7 @@ public class StompClient {
     /**
      * Connect without reconnect if connected
      *
-     * @param _headers might be null
+     * @param _headers HTTP headers to send in the INITIAL REQUEST, i.e. during the protocol upgrade
      */
     public void connect(List<StompHeader> _headers) {
         connect(_headers, false);
@@ -70,7 +75,7 @@ public class StompClient {
     /**
      * If already connected and reconnect=false - nope
      *
-     * @param _headers might be null
+     * @param _headers HTTP headers to send in the INITIAL REQUEST, i.e. during the protocol upgrade
      */
     public void connect(@Nullable List<StompHeader> _headers, boolean reconnect) {
         if (reconnect) disconnect();
@@ -123,7 +128,6 @@ public class StompClient {
 
     public Completable send(@NonNull StompMessage stompMessage) {
         Completable completable = mConnectionProvider.send(stompMessage.compile());
-        mConnectionComplete.subscribe();
         return completable.startWith(mConnectionComplete);
     }
 
@@ -136,7 +140,8 @@ public class StompClient {
     }
 
     public void disconnect() {
-        mConnectionProvider.disconnect().subscribe();
+        resetStatus();
+        mConnectionProvider.disconnect().subscribe(() -> mConnected = false);
     }
 
     public Observable<StompMessage> topic(String destinationPath) {

@@ -2,6 +2,7 @@ package ua.naiksoftware.stomp;
 
 import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
+import android.util.Log;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -22,6 +23,7 @@ class OkHttpConnectionProvider extends AbstractConnectionProvider {
     @NonNull
     private final Map<String, String> mConnectHttpHeaders;
     private final OkHttpClient mOkHttpClient;
+    private final String tag = OkHttpConnectionProvider.class.getSimpleName();
 
     @Nullable
     private WebSocket openedSocked;
@@ -36,7 +38,11 @@ class OkHttpConnectionProvider extends AbstractConnectionProvider {
     @NonNull
     @Override
     public Completable disconnect() {
-        return Completable.fromAction(() -> openedSocked.close(1000, ""));
+        if (openedSocked == null) {
+            return Completable.error(new IllegalStateException("Attempted to disconnect when already disconnected"));
+        }
+        return Completable
+                .fromAction(() -> openedSocked.close(1000, ""));
     }
 
     @Override
@@ -65,7 +71,10 @@ class OkHttpConnectionProvider extends AbstractConnectionProvider {
 
                     @Override
                     public void onMessage(WebSocket webSocket, String text) {
-                        emitMessage(text);
+                        if (text.equals("\n"))
+                            Log.d(tag, "RECEIVED HEARTBEAT");
+                        else
+                            emitMessage(text);
                     }
 
                     @Override
