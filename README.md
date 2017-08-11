@@ -225,6 +225,18 @@ These are the possible changes you need to make to your code for this branch, if
 - Connection Provider is selected by an enum
   - It used to be done by passing it a WebSocket class from either JWS or OkHttp
   - New way of using it can be seen in the examples above
+- Topic subscription now supports wildcard parsing
+  - Example: RabbitMQ allows subscribing to topics with wildcards ([more info](https://www.rabbitmq.com/tutorials/tutorial-five-java.html))
+  - Usage:
+    ``` java
+    StompClient client = Stomp.over(...);
+    client.setParser(StompClient.Parser.RABBITMQ);
+    client.connect();
+
+    client.topic("/topic/*").subscribe(message -> {
+        Log.i(TAG, "Received message: " + message.getPayload());
+    });
+    ```
 
 ## Additional Reading
 

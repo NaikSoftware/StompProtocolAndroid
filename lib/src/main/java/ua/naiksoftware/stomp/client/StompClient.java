@@ -10,6 +10,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.UUID;
 
+import java8.util.StringJoiner;
 import java8.util.concurrent.CompletableFuture;
 import rx.Completable;
 import rx.Observable;
@@ -39,17 +40,39 @@ public class StompClient {
     private CompletableFuture<Boolean> mConnectionFuture;
     private Completable mConnectionComplete;
     private HashMap<String, Observable<StompMessage>> mStreamMap;
+    private Parser parser;
 
     public StompClient(ConnectionProvider connectionProvider) {
         mConnectionProvider = connectionProvider;
         mMessageStream = PublishSubject.create();
         mStreamMap = new HashMap<>();
         resetStatus();
+        parser = Parser.NONE;
     }
 
     private void resetStatus() {
         mConnectionFuture = new CompletableFuture<>();
         mConnectionComplete = Completable.fromFuture(mConnectionFuture).subscribeOn(Schedulers.newThread());
+    }
+
+    public enum Parser {
+        NONE,
+        RABBITMQ
+    }
+
+    /**
+     * Set the wildcard parser for Topic subscription.
+     * <p>
+     * Right now, the only options are NONE and RABBITMQ.
+     * <p>
+     * When set to RABBITMQ, topic subscription allows for RMQ-style wildcards.
+     * <p>
+     * See more info <a href="https://www.rabbitmq.com/tutorials/tutorial-five-java.html">here</a>.
+     *
+     * @param parser Set to NONE by default
+     */
+    public void setParser(Parser parser) {
+        this.parser = parser;
     }
 
     /**
@@ -148,18 +171,68 @@ public class StompClient {
         return topic(destinationPath, null);
     }
 
-    public Observable<StompMessage> topic(@Nullable String destPath, List<StompHeader> headerList) {
+    public Observable<StompMessage> topic(@NonNull String destPath, List<StompHeader> headerList) {
         if (destPath == null)
             return Observable.error(new IllegalArgumentException("Topic path cannot be null"));
         else if (!mStreamMap.containsKey(destPath))
             mStreamMap.put(destPath,
                     mMessageStream
-                            .filter(msg -> destPath.equals(msg.findHeader(StompHeader.DESTINATION)))
+                            .filter(msg -> matches(destPath, msg))
                             .doOnSubscribe(() -> subscribePath(destPath, headerList).subscribe())
                             .doOnUnsubscribe(() -> unsubscribePath(destPath).subscribe())
                             .share()
             );
         return mStreamMap.get(destPath);
+    }
+
+    private boolean matches(String path, StompMessage msg) {
+        String dest = msg.findHeader(StompHeader.DESTINATION);
+        if (dest == null) return false;
+        boolean ret;
+
+        switch (parser) {
+            case NONE:
+                ret = path.equals(dest);
+                break;
+
+            case RABBITMQ:
+                // for example string "lorem.ipsum.*.sit":
+
+                // split it up into ["lorem", "ipsum", "*", "sit"]
+                String[] split = path.split("\\.");
+                ArrayList<String> transformed = new ArrayList<>();
+                // check for wildcards and replace with corresponding regex
+                for (String s : split) {
+                    switch (s) {
+                        case "*":
+                            transformed.add("[^.]+");
+                            break;
+                        case "#":
+                            // TODO: make this work with zero-word
+                            // e.g. "lorem.#.dolor" should ideally match "lorem.dolor"
+                            transformed.add(".*");
+                            break;
+                        default:
+                            transformed.add(s);
+                            break;
+                    }
+                }
+                // at this point, 'transformed' looks like ["lorem", "ipsum", "[^.]+", "sit"]
+                StringJoiner sj = new StringJoiner("\\.");
+                for (String s : transformed)
+                    sj.add(s);
+                String join = sj.toString();
+                // join = "lorem\.ipsum\.[^.]+\.sit"
+
+                ret = dest.matches(join);
+                break;
+
+            default:
+                ret = false;
+                break;
+        }
+
+        return ret;
     }
 
     private Completable subscribePath(String destinationPath, @Nullable List<StompHeader> headerList) {
