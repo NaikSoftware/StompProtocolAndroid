@@ -20,8 +20,6 @@ import java.util.TreeMap;
 import javax.net.ssl.SSLContext;
 import javax.net.ssl.SSLSocketFactory;
 
-import rx.Completable;
-
 /**
  * Created by naik on 05.05.16.
  */
@@ -49,8 +47,8 @@ class WebSocketsConnectionProvider extends AbstractConnectionProvider {
 
     @NonNull
     @Override
-    public Completable disconnect() {
-        return Completable.fromAction(() -> mWebSocketClient.close());
+    public void rawDisconnect() {
+        mWebSocketClient.close();
     }
 
     @Override
@@ -112,10 +110,11 @@ class WebSocketsConnectionProvider extends AbstractConnectionProvider {
 
         mWebSocketClient.connect();
         haveConnection = true;
+        mConnectionStream.onNext(true);
     }
 
     @Override
-    void bareSend(String stompMessage) {
+    void rawSend(String stompMessage) {
         mWebSocketClient.send(stompMessage);
     }
 

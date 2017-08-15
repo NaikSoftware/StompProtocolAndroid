@@ -4,8 +4,11 @@ import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
 import android.util.Log;
 
+import java.util.concurrent.TimeUnit;
+
 import rx.Completable;
 import rx.Observable;
+import rx.subjects.BehaviorSubject;
 import rx.subjects.PublishSubject;
 
 /**
@@ -22,29 +25,56 @@ abstract class AbstractConnectionProvider implements ConnectionProvider {
     private final PublishSubject<LifecycleEvent> mLifecycleStream;
     @NonNull
     private final PublishSubject<String> mMessagesStream;
+    final BehaviorSubject<Boolean> mConnectionStream;
 
     AbstractConnectionProvider() {
         mLifecycleStream = PublishSubject.create();
         mMessagesStream = PublishSubject.create();
+        mConnectionStream = BehaviorSubject.create(false);
     }
 
     @NonNull
     @Override
     public Observable<String> messages() {
-        createWebSocketConnection();
-        return mMessagesStream;
+        return mMessagesStream.startWith(initSocket().toObservable());
     }
 
     /**
-     * Completable to close socket.
+     * Simply close socket.
      * <p>
      * For example:
      * <pre>
-     * return Completable.fromAction(() -> webSocket.close());
+     * webSocket.close();
      * </pre>
      */
+    abstract void rawDisconnect();
+
     @Override
-    public abstract Completable disconnect();
+    public Completable disconnect() {
+        Observable<Boolean> ex = Observable.error(new IllegalStateException("Attempted to disconnect when already disconnected"));
+
+        Completable block = mConnectionStream
+                .first(isConnected -> isConnected)
+                .timeout(1, TimeUnit.SECONDS, ex)
+                .toCompletable();
+
+        return Completable
+                .fromAction(this::rawDisconnect)
+                .startWith(block);
+    }
+
+    private Completable initSocket() {
+        Observable<Boolean> ex = Observable.error(new IllegalStateException("Attempted to connect when already connected"));
+
+        Completable block = mConnectionStream
+                .first(isConnected -> !isConnected)
+                .timeout(1, TimeUnit.SECONDS, ex)
+                .toCompletable();
+
+        return Completable
+                .fromAction(this::createWebSocketConnection)
+                .startWith(block);
+    }
 
     /**
      * Most important method: connects to websocket and notifies program of messages.
@@ -61,7 +91,7 @@ abstract class AbstractConnectionProvider implements ConnectionProvider {
                 throw new IllegalStateException("Not connected yet");
             } else {
                 Log.d(TAG, "Send STOMP message: " + stompMessage);
-                bareSend(stompMessage);
+                rawSend(stompMessage);
                 return null;
             }
         });
@@ -77,7 +107,7 @@ abstract class AbstractConnectionProvider implements ConnectionProvider {
      *
      * @param stompMessage message to send
      */
-    abstract void bareSend(String stompMessage);
+    abstract void rawSend(String stompMessage);
 
     /**
      * Get socket object.
@@ -94,6 +124,8 @@ abstract class AbstractConnectionProvider implements ConnectionProvider {
     void emitLifecycleEvent(@NonNull LifecycleEvent lifecycleEvent) {
         Log.d(TAG, "Emit lifecycle event: " + lifecycleEvent.getType().name());
         mLifecycleStream.onNext(lifecycleEvent);
+        if (lifecycleEvent.getType().equals(LifecycleEvent.Type.CLOSED))
+            mConnectionStream.onNext(false);
     }
 
     void emitMessage(String stompMessage) {
