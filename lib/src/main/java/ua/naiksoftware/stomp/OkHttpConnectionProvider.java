@@ -7,6 +7,8 @@ import android.util.Log;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.TreeMap;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 
 import okhttp3.Headers;
 import okhttp3.OkHttpClient;
@@ -16,6 +18,7 @@ import okhttp3.WebSocket;
 import okhttp3.WebSocketListener;
 import okio.ByteString;
 import rx.Completable;
+import rx.subjects.BehaviorSubject;
 
 class OkHttpConnectionProvider extends AbstractConnectionProvider {
 
@@ -24,6 +27,7 @@ class OkHttpConnectionProvider extends AbstractConnectionProvider {
     private final Map<String, String> mConnectHttpHeaders;
     private final OkHttpClient mOkHttpClient;
     private final String tag = OkHttpConnectionProvider.class.getSimpleName();
+    private final BehaviorSubject<Boolean> mConnectionStream;
 
     @Nullable
     private WebSocket openedSocked;
@@ -33,24 +37,50 @@ class OkHttpConnectionProvider extends AbstractConnectionProvider {
         mUri = uri;
         mConnectHttpHeaders = connectHttpHeaders != null ? connectHttpHeaders : new HashMap<>();
         mOkHttpClient = okHttpClient;
+        mConnectionStream = BehaviorSubject.create(false);
+        mConnectionStream.subscribe(value -> Log.d(tag, "Connection stream emitted: " + value));
     }
 
     @NonNull
     @Override
     public Completable disconnect() {
+        Completable block = mConnectionStream
+                .first(isConnected -> isConnected)
+                .timeout(1, TimeUnit.SECONDS)
+                .doOnError(error -> {
+                    if (error.getClass().equals(TimeoutException.class))
+                            Log.e(tag, "Attempted to disconnect when already disconnected");
+                })
+                .toCompletable();
+
+        /*
         if (openedSocked == null) {
             return Completable.error(new IllegalStateException("Attempted to disconnect when already disconnected"));
         }
+        */
+
         return Completable
-                .fromAction(() -> openedSocked.close(1000, ""));
+                .fromAction(() -> openedSocked.close(1000, ""))
+                .startWith(block);
     }
 
     @Override
     void createWebSocketConnection() {
+        Completable block = mConnectionStream
+                .first(isConnected -> !isConnected)
+                .timeout(1, TimeUnit.SECONDS)
+                .doOnError(error -> {
+                    if (error.getClass().equals(TimeoutException.class))
+                        Log.e(tag, "Attempted to connect when already connected");
+                })
+                .toCompletable();
+        block.get(); // todo: do this the right way
 
+        /*
         if (openedSocked != null) {
             throw new IllegalStateException("Already have connection to web socket");
         }
+        */
 
         Request.Builder requestBuilder = new Request.Builder()
                 .url(mUri);
@@ -86,6 +116,7 @@ class OkHttpConnectionProvider extends AbstractConnectionProvider {
                     public void onClosed(WebSocket webSocket, int code, String reason) {
                         emitLifecycleEvent(new LifecycleEvent(LifecycleEvent.Type.CLOSED));
                         openedSocked = null;
+                        mConnectionStream.onNext(false);
                     }
 
                     @Override
@@ -95,6 +126,7 @@ class OkHttpConnectionProvider extends AbstractConnectionProvider {
                 }
 
         );
+        mConnectionStream.onNext(true);
     }
 
     @Override

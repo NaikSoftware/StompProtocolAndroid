@@ -30,6 +30,8 @@ You can use this library two ways:
 - Using the new Native Java 8 support
   - As of this writing, you must be using Android Studio Canary to use this feature.
   - Has been tested in the following environments:
+    - Beta 2, Gradle plugin v3.0.0-beta2
+    - Beta 1, Gradle plugin v3.0.0-beta1
     - Canary 9, Gradle plugin v3.0.0-alpha9
     - Canary 8, Gradle plugin v3.0.0-alpha8
   - It *should* work in all 3.0.0+ versions
@@ -219,6 +221,21 @@ These are the possible changes you need to make to your code for this branch, if
         });
         ```
     - Be sure to implement this change, because the IDE might not catch the error.
+- Removed `reconnect` parameter from `connect(...)` methods
+  - Old, deprecated overloads of the method:
+    ``` java
+    void connect(boolean reconnect) {...}
+    void connect(List<StompHeader> _headers, boolean reconnect) {...}
+    ```
+  - Now, these are the *only* two ways to call `connect` (these existed before, too):
+    ``` java
+    void connect() {...}
+    void connect(List<StompHeader> _headers) {...}
+    ```
+  - Additionally, reconnection is now handled by just calling `reconnect()`
+    - It automatically attaches the last-used connect headers
+    - It is meant to be used when already connected; it executes `disconnect()`
+    - Note that if you're already disconnected, this will throw a `TimeoutException`
 - Passing null as the topic path now throws an exception
   - Previously, it was supposed to silently fail, although it would probably hit a NPE first (untested)
   - Now it throws an IllegalArgumentException

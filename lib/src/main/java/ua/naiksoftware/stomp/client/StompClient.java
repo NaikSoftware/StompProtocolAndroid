@@ -14,6 +14,7 @@ import java8.util.StringJoiner;
 import java8.util.concurrent.CompletableFuture;
 import rx.Completable;
 import rx.Observable;
+import rx.Subscription;
 import rx.schedulers.Schedulers;
 import rx.subjects.PublishSubject;
 import ua.naiksoftware.stomp.ConnectionProvider;
@@ -41,6 +42,8 @@ public class StompClient {
     private Completable mConnectionComplete;
     private HashMap<String, Observable<StompMessage>> mStreamMap;
     private Parser parser;
+    private Subscription lifecycleSub;
+    private List<StompHeader> mHeaders;
 
     public StompClient(ConnectionProvider connectionProvider) {
         mConnectionProvider = connectionProvider;
@@ -82,28 +85,16 @@ public class StompClient {
         connect(null);
     }
 
-    public void connect(boolean reconnect) {
-        connect(null, reconnect);
-    }
-
-    /**
-     * Connect without reconnect if connected
-     *
-     * @param _headers HTTP headers to send in the INITIAL REQUEST, i.e. during the protocol upgrade
-     */
-    public void connect(List<StompHeader> _headers) {
-        connect(_headers, false);
-    }
-
     /**
      * If already connected and reconnect=false - nope
      *
      * @param _headers HTTP headers to send in the INITIAL REQUEST, i.e. during the protocol upgrade
      */
-    public void connect(@Nullable List<StompHeader> _headers, boolean reconnect) {
-        if (reconnect) disconnect();
+    public void connect(@Nullable List<StompHeader> _headers) {
+        mHeaders = _headers;
+
         if (mConnected) return;
-        lifecycle()
+        lifecycleSub = lifecycle()
                 .subscribe(lifecycleEvent -> {
                     switch (lifecycleEvent.getType()) {
                         case OPENED:
@@ -138,6 +129,14 @@ public class StompClient {
                 });
     }
 
+    /**
+     * Disconnect from server, and then reconnect with the last-used headers
+     */
+    public void reconnect() {
+        disconnect();
+        connect(mHeaders);
+    }
+
     public Completable send(String destination) {
         return send(destination, null);
     }
@@ -164,6 +163,7 @@ public class StompClient {
 
     public void disconnect() {
         resetStatus();
+        lifecycleSub.unsubscribe();
         mConnectionProvider.disconnect().subscribe(() -> mConnected = false);
     }
 
