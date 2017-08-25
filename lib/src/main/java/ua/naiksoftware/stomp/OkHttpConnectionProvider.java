@@ -106,6 +106,11 @@ import okio.ByteString;
                     public void onFailure(WebSocket webSocket, Throwable t, Response response) {
                         emitLifecycleEvent(new LifecycleEvent(LifecycleEvent.Type.ERROR, new Exception(t)));
                     }
+                    
+                    @Override
+                    public void onClosing(final WebSocket webSocket, final int code, final String reason) {
+                        webSocket.close(code, reason);
+                    }
                 }
 
         );
