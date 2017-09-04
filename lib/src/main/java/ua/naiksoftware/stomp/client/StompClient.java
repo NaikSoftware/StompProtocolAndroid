@@ -11,6 +11,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 
 import io.reactivex.BackpressureStrategy;
@@ -33,7 +34,7 @@ public class StompClient {
     public static final String DEFAULT_ACK = "auto";
 
     private Disposable mMessagesDisposable;
-    private Map<String, Set<FlowableEmitter<? super StompMessage>>> mEmitters = new HashMap<>();
+    private Map<String, Set<FlowableEmitter<? super StompMessage>>> mEmitters = new ConcurrentHashMap<>();
     private List<ConnectableFlowable<Void>> mWaitConnectionFlowables;
     private final ConnectionProvider mConnectionProvider;
     private HashMap<String, String> mTopics;
