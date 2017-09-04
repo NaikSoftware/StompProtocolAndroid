@@ -34,6 +34,7 @@ public class StompClient {
     public static final String DEFAULT_ACK = "auto";
 
     private Disposable mMessagesDisposable;
+    private Disposable mLifecycleDisposable;
     private Map<String, Set<FlowableEmitter<? super StompMessage>>> mEmitters = new ConcurrentHashMap<>();
     private List<ConnectableFlowable<Void>> mWaitConnectionFlowables;
     private final ConnectionProvider mConnectionProvider;
@@ -74,7 +75,7 @@ public class StompClient {
     public void connect(List<StompHeader> _headers, boolean reconnect) {
         if (reconnect) disconnect();
         if (mConnected) return;
-        mConnectionProvider.getLifecycleReceiver()
+        mLifecycleDisposable = mConnectionProvider.getLifecycleReceiver()
                 .subscribe(lifecycleEvent -> {
                     switch (lifecycleEvent.getType()) {
                         case OPENED:
@@ -156,6 +157,7 @@ public class StompClient {
 
     public void disconnect() {
         if (mMessagesDisposable != null) mMessagesDisposable.dispose();
+        if (mLifecycleDisposable != null) mLifecycleDisposable.dispose();
         mConnected = false;
     }
 
