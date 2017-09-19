@@ -38,6 +38,7 @@ class WebSocketsConnectionProvider extends AbstractConnectionProvider {
 
     /**
      * Support UIR scheme ws://host:port/path
+     *
      * @param connectHttpHeaders may be null
      */
     WebSocketsConnectionProvider(String uri, @Nullable Map<String, String> connectHttpHeaders) {
@@ -97,7 +98,7 @@ class WebSocketsConnectionProvider extends AbstractConnectionProvider {
             }
         };
 
-        if(mUri.startsWith("wss")) {
+        if (mUri.startsWith("wss")) {
             try {
                 SSLContext sc = SSLContext.getInstance("TLS");
                 sc.init(null, null, null);
