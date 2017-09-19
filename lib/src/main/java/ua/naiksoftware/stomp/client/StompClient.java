@@ -6,9 +6,9 @@ import android.util.Log;
 
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 
 import java8.util.StringJoiner;
 import java8.util.concurrent.CompletableFuture;
@@ -33,14 +33,14 @@ public class StompClient {
 
     private final String tag = StompClient.class.getSimpleName();
     private final ConnectionProvider mConnectionProvider;
-    private HashMap<String, String> mTopics;
+    private ConcurrentHashMap<String, String> mTopics;
     private boolean mConnected;
     private boolean isConnecting;
 
     private PublishSubject<StompMessage> mMessageStream;
     private CompletableFuture<Boolean> mConnectionFuture;
     private Completable mConnectionComplete;
-    private HashMap<String, Observable<StompMessage>> mStreamMap;
+    private ConcurrentHashMap<String, Observable<StompMessage>> mStreamMap;
     private Parser parser;
     private Subscription lifecycleSub;
     private List<StompHeader> mHeaders;
@@ -49,7 +49,7 @@ public class StompClient {
     public StompClient(ConnectionProvider connectionProvider) {
         mConnectionProvider = connectionProvider;
         mMessageStream = PublishSubject.create();
-        mStreamMap = new HashMap<>();
+        mStreamMap = new ConcurrentHashMap<>();
         resetStatus();
         parser = Parser.NONE;
     }
@@ -252,7 +252,7 @@ public class StompClient {
     private Completable subscribePath(String destinationPath, @Nullable List<StompHeader> headerList) {
         String topicId = UUID.randomUUID().toString();
 
-        if (mTopics == null) mTopics = new HashMap<>();
+        if (mTopics == null) mTopics = new ConcurrentHashMap<>();
 
         // Only continue if we don't already have a subscription to the topic
         if (mTopics.containsKey(destinationPath)) {
