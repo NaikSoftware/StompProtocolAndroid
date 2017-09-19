@@ -50,7 +50,7 @@ public class Stomp {
     public static StompClient over(@NonNull ConnectionProvider connectionProvider, String uri, @Nullable Map<String, String> connectHttpHeaders, @Nullable OkHttpClient okHttpClient) {
         if (connectionProvider == ConnectionProvider.JWS) {
             if (okHttpClient != null) {
-                throw new IllegalArgumentException("You cannot pass a webSocketClient with 'org.java_websocket.WebSocket'. use null instead.");
+                throw new IllegalArgumentException("You cannot pass an OkHttpClient when using JWS. Use null instead.");
             }
             return createStompClient(new WebSocketsConnectionProvider(uri, connectHttpHeaders));
         }

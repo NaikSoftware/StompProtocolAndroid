@@ -76,6 +76,11 @@ abstract class AbstractConnectionProvider implements ConnectionProvider {
                 .startWith(block);
     }
 
+    // Doesn't do anything at all, only here as a stub
+    public Completable setHeartbeat(int ms) {
+        return Completable.complete();
+    }
+
     /**
      * Most important method: connects to websocket and notifies program of messages.
      * <p>

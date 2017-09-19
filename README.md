@@ -1,15 +1,17 @@
-# STOMP protocol via WebSocket for Android
+# Websockets on Android
 
 [![Release](https://jitpack.io/v/forresthopkinsa/StompProtocolAndroid.svg)](https://jitpack.io/#forresthopkinsa/StompProtocolAndroid)
 
 ## Overview
 
-**Note that this is a FORK of a project by NaikSoftware! This version is made to avoid using RetroLambda! (Scroll down to see other changes)**
+**Note that this is a FORK of a project by NaikSoftware! This version was originally made to avoid using RetroLambda.**
+
+*(It now has [many other differences](#changes-in-this-fork).)*
 
 This library provides support for [STOMP protocol](https://stomp.github.io/) over Websockets.
 
-At now library works only as client for any backend that supports STOMP, such as
-NodeJS (e.g. using StompJS) or Spring Boot ([with WebSocket support](https://spring.io/guides/gs/messaging-stomp-websocket/)).
+Right now, the library works as a client for any backend that supports STOMP, such as
+Node.js (e.g. using StompJS) or Spring Boot ([with WebSocket support](https://spring.io/guides/gs/messaging-stomp-websocket/)).
 
 Add library as gradle dependency (Versioning info [here](https://jitpack.io/#forresthopkinsa/StompProtocolAndroid)):
 
@@ -28,12 +30,10 @@ You can use this library two ways:
 - Using the old JACK toolchain
   - If you have Java 8 compatiblity and Jack enabled, this library will work for you
 - Using the new Native Java 8 support
-  - As of this writing, you must be using Android Studio Canary to use this feature.
+  - As of this writing, you must be using Android Studio Beta to use this feature.
   - Has been tested in the following environments:
-    - Beta 2, Gradle plugin v3.0.0-beta2
-    - Beta 1, Gradle plugin v3.0.0-beta1
-    - Canary 9, Gradle plugin v3.0.0-alpha9
-    - Canary 8, Gradle plugin v3.0.0-alpha8
+    - Beta 1-9, Gradle plugin v3.0.0-beta(1-9)
+    - Canary 8-9, Gradle plugin v3.0.0-alpha(8-9)
   - It *should* work in all 3.0.0+ versions
   - You can find more info on the [Releases Page](https://github.com/forresthopkinsa/StompProtocolAndroid/releases)
 
@@ -101,7 +101,7 @@ Check out the [upstream example server](https://github.com/NaikSoftware/stomp-pr
  });
   
  client.send("/app/hello", "world").subscribe(
-     aVoid -> Log.d(TAG, "Sent data!"),
+     () -> Log.d(TAG, "Sent data!"),
      error -> Log.e(TAG, "Encountered error while sending data!", error)
  );
   
@@ -131,8 +131,8 @@ client.lifecycle().subscribe(lifecycleEvent -> {
             Log.d(TAG, "Stomp connection opened");
             break;
         case CLOSED:
-             Log.d(TAG, "Stomp connection closed");
-             break;
+            Log.d(TAG, "Stomp connection closed");
+            break;
         case ERROR:
             Log.e(TAG, "Stomp connection error", lifecycleEvent.getException());
             break;
@@ -151,6 +151,16 @@ client = Stomp.over(Stomp.ConnectionProvider.OKHTTP, address, null, getUnsafeOkH
 Yes, it's safe to pass `null` for either (or both) of the last two arguments. That's exactly what the shorter overloads do.
 
 Note: This method is only supported using OkHttp, not JWS.
+
+**Heartbeating**
+
+STOMP Heartbeat implementation is in progress. Right now, you can send a heartbeat request header upon initial websocket connect:
+
+``` java
+// ask server to send us heartbeat every ten seconds
+client.setHeartbeat(10000);
+client.connect();
+```
 
 **Support**
 
@@ -254,6 +264,9 @@ These are the possible changes you need to make to your code for this branch, if
         Log.i(TAG, "Received message: " + message.getPayload());
     });
     ```
+- Rudimentary heartbeat mechanism
+  - You can use `StompClient.setHeartbeat(ms interval)` to send a heartbeat header to the server
+  - WIP; currently we don't deal with those heartbeats in any way other than printing them to console
 
 ## Additional Reading
 

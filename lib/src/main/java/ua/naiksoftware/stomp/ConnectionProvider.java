@@ -30,4 +30,6 @@ public interface ConnectionProvider {
      * Automatically emits Lifecycle.CLOSE
      */
     Completable disconnect();
+
+    Completable setHeartbeat(int ms);
 }

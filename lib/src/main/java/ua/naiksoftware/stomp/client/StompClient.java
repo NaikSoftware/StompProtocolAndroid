@@ -44,6 +44,7 @@ public class StompClient {
     private Parser parser;
     private Subscription lifecycleSub;
     private List<StompHeader> mHeaders;
+    private int heartbeat;
 
     public StompClient(ConnectionProvider connectionProvider) {
         mConnectionProvider = connectionProvider;
@@ -79,6 +80,18 @@ public class StompClient {
     }
 
     /**
+     * Sets the heartbeat interval to request from the server.
+     * <p>
+     * Not very useful yet, because we don't have any heartbeat logic on our side.
+     *
+     * @param ms heartbeat time in milliseconds
+     */
+    public void setHeartbeat(int ms) {
+        heartbeat = ms;
+        mConnectionProvider.setHeartbeat(ms).subscribe();
+    }
+
+    /**
      * Connect without reconnect if connected
      */
     public void connect() {
@@ -86,7 +99,7 @@ public class StompClient {
     }
 
     /**
-     * If already connected and reconnect=false - nope
+     * Connect to websocket. If already connected, this will silently fail.
      *
      * @param _headers HTTP headers to send in the INITIAL REQUEST, i.e. during the protocol upgrade
      */
@@ -100,6 +113,7 @@ public class StompClient {
                         case OPENED:
                             List<StompHeader> headers = new ArrayList<>();
                             headers.add(new StompHeader(StompHeader.VERSION, SUPPORTED_VERSIONS));
+                            headers.add(new StompHeader(StompHeader.HEART_BEAT, "0," + heartbeat));
                             if (_headers != null) headers.addAll(_headers);
                             mConnectionProvider.send(new StompMessage(StompCommand.CONNECT, headers, null).compile())
                                     .subscribe();

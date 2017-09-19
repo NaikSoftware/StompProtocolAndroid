@@ -1,7 +1,7 @@
 package ua.naiksoftware.stompclientexample;
 
-import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
+import android.support.v7.app.AppCompatActivity;
 import android.support.v7.widget.LinearLayoutManager;
 import android.support.v7.widget.RecyclerView;
 import android.util.Log;
@@ -11,15 +11,12 @@ import android.widget.Toast;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 
-import org.java_websocket.WebSocket;
-
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
 import java.util.Locale;
 
-import rx.Observable;
 import rx.Subscription;
 import rx.android.schedulers.AndroidSchedulers;
 import rx.schedulers.Schedulers;
@@ -56,7 +53,7 @@ public class MainActivity extends AppCompatActivity {
     }
 
     public void connectStomp(View view) {
-        mStompClient = Stomp.over(WebSocket.class, "ws://" + ANDROID_EMULATOR_LOCALHOST
+        mStompClient = Stomp.over(Stomp.ConnectionProvider.JWS, "ws://" + ANDROID_EMULATOR_LOCALHOST
                 + ":" + RestClient.SERVER_PORT + "/example-endpoint/websocket");
 
         mStompClient.lifecycle()
@@ -90,10 +87,10 @@ public class MainActivity extends AppCompatActivity {
 
     public void sendEchoViaStomp(View v) {
         mStompClient.send("/topic/hello-msg-mapping", "Echo STOMP " + mTimeFormat.format(new Date()))
-                .compose(applySchedulers())
-                .subscribe(aVoid -> {
-                    Log.d(TAG, "STOMP echo send successfully");
-                }, throwable -> {
+                .unsubscribeOn(Schedulers.newThread())
+                .subscribeOn(Schedulers.io())
+                .observeOn(AndroidSchedulers.mainThread())
+                .subscribe(() -> Log.d(TAG, "STOMP echo send successfully"), throwable -> {
                     Log.e(TAG, "Error send STOMP echo", throwable);
                     toast(throwable.getMessage());
                 });
@@ -102,10 +99,10 @@ public class MainActivity extends AppCompatActivity {
     public void sendEchoViaRest(View v) {
         mRestPingSubscription = RestClient.getInstance().getExampleRepository()
                 .sendRestEcho("Echo REST " + mTimeFormat.format(new Date()))
-                .compose(applySchedulers())
-                .subscribe(aVoid -> {
-                    Log.d(TAG, "REST echo send successfully");
-                }, throwable -> {
+                .unsubscribeOn(Schedulers.newThread())
+                .subscribeOn(Schedulers.io())
+                .observeOn(AndroidSchedulers.mainThread())
+                .subscribe(aVoid -> Log.d(TAG, "REST echo send successfully"), throwable -> {
                     Log.e(TAG, "Error send REST echo", throwable);
                     toast(throwable.getMessage());
                 });
@@ -120,13 +117,6 @@ public class MainActivity extends AppCompatActivity {
     private void toast(String text) {
         Log.i(TAG, text);
         Toast.makeText(this, text, Toast.LENGTH_SHORT).show();
-    }
-
-    protected <T> Observable.Transformer<T, T> applySchedulers() {
-        return rObservable -> rObservable
-                .unsubscribeOn(Schedulers.newThread())
-                .subscribeOn(Schedulers.io())
-                .observeOn(AndroidSchedulers.mainThread());
     }
 
     @Override
