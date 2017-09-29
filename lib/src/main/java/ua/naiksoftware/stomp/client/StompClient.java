@@ -36,6 +36,7 @@ public class StompClient {
     private ConcurrentHashMap<String, String> mTopics;
     private boolean mConnected;
     private boolean isConnecting;
+    private boolean legacyWhitespace;
 
     private PublishSubject<StompMessage> mMessageStream;
     private CompletableFuture<Boolean> mConnectionFuture;
@@ -115,7 +116,7 @@ public class StompClient {
                             headers.add(new StompHeader(StompHeader.VERSION, SUPPORTED_VERSIONS));
                             headers.add(new StompHeader(StompHeader.HEART_BEAT, "0," + heartbeat));
                             if (_headers != null) headers.addAll(_headers);
-                            mConnectionProvider.send(new StompMessage(StompCommand.CONNECT, headers, null).compile())
+                            mConnectionProvider.send(new StompMessage(StompCommand.CONNECT, headers, null).compile(legacyWhitespace))
                                     .subscribe();
                             break;
 
@@ -163,7 +164,7 @@ public class StompClient {
     }
 
     public Completable send(@NonNull StompMessage stompMessage) {
-        Completable completable = mConnectionProvider.send(stompMessage.compile());
+        Completable completable = mConnectionProvider.send(stompMessage.compile(legacyWhitespace));
         return completable.startWith(mConnectionComplete);
     }
 
@@ -197,6 +198,21 @@ public class StompClient {
                             .share()
             );
         return mStreamMap.get(destPath);
+    }
+
+    /**
+     * Reverts to the old frame formatting, which included two newlines between the message body
+     * and the end-of-frame marker.
+     * <p>
+     * Before: Body\n\n^@
+     * <p>
+     * After: Body^@
+     *
+     * @param legacyWhitespace whether to append an extra two newlines
+     * @see <a href="http://stomp.github.io/stomp-specification-1.2.html#STOMP_Frames">The STOMP spec</a>
+     */
+    public void setLegacyWhitespace(boolean legacyWhitespace) {
+        this.legacyWhitespace = legacyWhitespace;
     }
 
     private boolean matches(String path, StompMessage msg) {

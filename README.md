@@ -32,7 +32,7 @@ You can use this library two ways:
 - Using the new Native Java 8 support
   - As of this writing, you must be using Android Studio Beta to use this feature.
   - Has been tested in the following environments:
-    - Beta 1-9, Gradle plugin v3.0.0-beta(1-9)
+    - Beta 1-6, Gradle plugin v3.0.0-beta(1-6)
     - Canary 8-9, Gradle plugin v3.0.0-alpha(8-9)
   - It *should* work in all 3.0.0+ versions
   - You can find more info on the [Releases Page](https://github.com/forresthopkinsa/StompProtocolAndroid/releases)
@@ -267,6 +267,10 @@ These are the possible changes you need to make to your code for this branch, if
 - Rudimentary heartbeat mechanism
   - You can use `StompClient.setHeartbeat(ms interval)` to send a heartbeat header to the server
   - WIP; currently we don't deal with those heartbeats in any way other than printing them to console
+- Better adherence to STOMP spec
+  - According to the [spec](http://stomp.github.io/stomp-specification-1.2.html#STOMP_Frames), the end of the message body should be immediately followed by a NULL octet, marking the end of the frame.
+  - Before, we were adding an extra two newlines between the body and NULL octet, which was breaking compatibility with picky servers.
+  - This shouldn't make any difference, but if it does, you can revert to legacy formatting with `client.setLegacyWhitespace(true)`.
 
 ## Additional Reading
 

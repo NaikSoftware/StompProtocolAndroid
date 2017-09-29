@@ -54,6 +54,11 @@ public class StompMessage {
 
     @NonNull
     public String compile() {
+        return compile(false);
+    }
+
+    @NonNull
+    public String compile(boolean legacyWhitespace) {
         StringBuilder builder = new StringBuilder();
         builder.append(mStompCommand).append('\n');
         for (StompHeader header : mStompHeaders) {
@@ -61,7 +66,8 @@ public class StompMessage {
         }
         builder.append('\n');
         if (mPayload != null) {
-            builder.append(mPayload).append("\n\n");
+            builder.append(mPayload);
+            if (legacyWhitespace) builder.append("\n\n");
         }
         builder.append(TERMINATE_MESSAGE_SYMBOL);
         return builder.toString();
