@@ -4,7 +4,7 @@ import android.util.Log;
 
 import org.java_websocket.WebSocket;
 import org.java_websocket.client.WebSocketClient;
-import org.java_websocket.drafts.Draft_17;
+import org.java_websocket.drafts.Draft_6455;
 import org.java_websocket.exceptions.InvalidDataException;
 import org.java_websocket.handshake.ClientHandshake;
 import org.java_websocket.handshake.ServerHandshake;
@@ -77,7 +77,7 @@ import io.reactivex.FlowableEmitter;
         if (haveConnection)
             throw new IllegalStateException("Already have connection to web socket");
 
-        mWebSocketClient = new WebSocketClient(URI.create(mUri), new Draft_17(), mConnectHttpHeaders, 0) {
+        mWebSocketClient = new WebSocketClient(URI.create(mUri), new Draft_6455(), mConnectHttpHeaders, 0) {
 
             @Override
             public void onWebsocketHandshakeReceivedAsClient(WebSocket conn, ClientHandshake request, ServerHandshake response) throws InvalidDataException {
