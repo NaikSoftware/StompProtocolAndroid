@@ -177,17 +177,20 @@ public class StompClient {
                while (mapIterator.hasNext()) {
                    String destinationUrl = mapIterator.next();
                    Set<FlowableEmitter<? super StompMessage>> set = mEmitters.get(destinationUrl);
-                   Iterator<FlowableEmitter<? super StompMessage>> setIterator = set.iterator();
-                   while (setIterator.hasNext()) {
-                       FlowableEmitter<? super StompMessage> subscriber = setIterator.next();
-                       if (subscriber.isCancelled()) {
-                           setIterator.remove();
-                           if (set.size() < 1) {
-                               mapIterator.remove();
-                               unsubscribePath(destinationUrl).subscribe();
+                   if (null != set) {
+                       Iterator<FlowableEmitter<? super StompMessage>> setIterator = set.iterator();
+                       while (setIterator.hasNext()) {
+                           FlowableEmitter<? super StompMessage> subscriber = setIterator.next();
+                           if (subscriber.isCancelled()) {
+                               setIterator.remove();
+                               if (set.size() < 1) {
+                                   mapIterator.remove();
+                                   unsubscribePath(destinationUrl).subscribe();
+                               }
                            }
                        }
                    }
+                   
                }
            });
    }
