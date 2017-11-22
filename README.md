@@ -6,7 +6,7 @@
 
 **Note that this is a FORK of a project by NaikSoftware! This version was originally made to avoid using RetroLambda.**
 
-*(It now has [many other differences](#changes-in-this-fork).)*
+*(It now has [many other important differences](#changes-in-this-fork).)*
 
 This library provides support for [STOMP protocol](https://stomp.github.io/) over Websockets.
 
@@ -21,7 +21,7 @@ repositories {
     maven { url "https://jitpack.io" }
 }
 dependencies {
-    compile 'com.github.forresthopkinsa:StompProtocolAndroid:1.4.0'
+    compile 'com.github.forresthopkinsa:StompProtocolAndroid:17.10.0'
 }
 ```
 
@@ -30,12 +30,8 @@ You can use this library two ways:
 - Using the old JACK toolchain
   - If you have Java 8 compatiblity and Jack enabled, this library will work for you
 - Using the new Native Java 8 support
-  - As of this writing, you must be using Android Studio Beta to use this feature.
-  - Has been tested in the following environments:
-    - Beta 1-6, Gradle plugin v3.0.0-beta(1-6)
-    - Canary 8-9, Gradle plugin v3.0.0-alpha(8-9)
-  - It *should* work in all 3.0.0+ versions
-  - You can find more info on the [Releases Page](https://github.com/forresthopkinsa/StompProtocolAndroid/releases)
+  - It should work in all Android Studio (and Gradle plugin) 3.0.0+ versions
+  - You can find compatibility info on the [Releases Page](https://github.com/forresthopkinsa/StompProtocolAndroid/releases)
 
 However, *this fork is NOT compatible with Retrolambda.*
 If you have RL as a dependency, then you should be using the [upstream version](https://github.com/NaikSoftware/StompProtocolAndroid) of this project!
@@ -168,6 +164,15 @@ Right now, the library only supports sending and receiving messages. ACK message
 
 ## Changes in this fork
 
+**Summary**
+
+Improvements: Most of the Rx logic has been rewritten, and a good portion of the other code has also been modified
+to allow for more stability. Additionally, a lot of blocking code has been replaced with reactive code,
+resulting in better performance.
+
+Drawbacks: In order to allow for major changes, this branch sacrifices backward compatibility. Code written
+for the upstream will likely have to be modified to work with this version. You can find more details below.
+
 **Build changes**
 
 The upstream master is based on Retrolambda. This version is based on Native Java 8 compilation,
@@ -270,6 +275,7 @@ These are the possible changes you need to make to your code for this branch, if
 - Better adherence to STOMP spec
   - According to the [spec](http://stomp.github.io/stomp-specification-1.2.html#STOMP_Frames), the end of the message body should be immediately followed by a NULL octet, marking the end of the frame.
   - Before, we were adding an extra two newlines between the body and NULL octet, which was breaking compatibility with picky servers.
+  - Now, we format it correctly; there is no whitespace between the end of the body and the `\u0000`.
   - This shouldn't make any difference, but if it does, you can revert to legacy formatting with `client.setLegacyWhitespace(true)`.
 
 ## Additional Reading
