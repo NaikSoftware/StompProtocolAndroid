@@ -289,6 +289,7 @@ public class StompClient {
 
     private Completable unsubscribePath(String dest) {
         mStreamMap.remove(dest);
+        mTopics.remove(dest);
 
         String topicId = mTopics.get(dest);
         Log.d(TAG, "Unsubscribe path: " + dest + " id: " + topicId);
