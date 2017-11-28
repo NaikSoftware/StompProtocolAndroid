@@ -204,9 +204,9 @@ public class StompClient {
      * Reverts to the old frame formatting, which included two newlines between the message body
      * and the end-of-frame marker.
      * <p>
-     * Before: Body\n\n^@
+     * Legacy: Body\n\n^@
      * <p>
-     * After: Body^@
+     * Default: Body^@
      *
      * @param legacyWhitespace whether to append an extra two newlines
      * @see <a href="http://stomp.github.io/stomp-specification-1.2.html#STOMP_Frames">The STOMP spec</a>
@@ -289,9 +289,10 @@ public class StompClient {
 
     private Completable unsubscribePath(String dest) {
         mStreamMap.remove(dest);
-        mTopics.remove(dest);
 
         String topicId = mTopics.get(dest);
+        mTopics.remove(dest);
+
         Log.d(TAG, "Unsubscribe path: " + dest + " id: " + topicId);
 
         return send(new StompMessage(StompCommand.UNSUBSCRIBE,
