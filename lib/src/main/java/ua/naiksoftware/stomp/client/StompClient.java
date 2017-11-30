@@ -44,6 +44,7 @@ public class StompClient {
     private ConcurrentHashMap<String, Observable<StompMessage>> mStreamMap;
     private Parser parser;
     private Subscription lifecycleSub;
+    private Subscription messagesSubscription;
     private List<StompHeader> mHeaders;
     private int heartbeat;
 
@@ -133,7 +134,7 @@ public class StompClient {
                 });
 
         isConnecting = true;
-        mConnectionProvider.messages()
+        messagesSubscription = mConnectionProvider.messages()
                 .map(StompMessage::from)
                 .doOnNext(this::callSubscribers)
                 .filter(msg -> msg.getStompCommand().equals(StompCommand.CONNECTED))
@@ -179,6 +180,7 @@ public class StompClient {
     public void disconnect() {
         resetStatus();
         lifecycleSub.unsubscribe();
+        messagesSubscription.unsubscribe();
         mConnectionProvider.disconnect().subscribe(() -> mConnected = false);
     }
 
