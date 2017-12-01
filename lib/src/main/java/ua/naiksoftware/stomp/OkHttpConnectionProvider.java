@@ -80,7 +80,10 @@ class OkHttpConnectionProvider extends AbstractConnectionProvider {
 
                     @Override
                     public void onFailure(WebSocket webSocket, Throwable t, Response response) {
+                        // in OkHttp, a Failure is equivalent to a JWS-Error *and* a JWS-Close
                         emitLifecycleEvent(new LifecycleEvent(LifecycleEvent.Type.ERROR, new Exception(t)));
+                        openedSocked = null;
+                        emitLifecycleEvent(new LifecycleEvent(LifecycleEvent.Type.CLOSED));
                     }
 
                     @Override
