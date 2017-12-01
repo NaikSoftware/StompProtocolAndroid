@@ -21,7 +21,7 @@ repositories {
     maven { url "https://jitpack.io" }
 }
 dependencies {
-    compile 'com.github.forresthopkinsa:StompProtocolAndroid:17.10.0'
+    compile 'com.github.forresthopkinsa:StompProtocolAndroid:17.11.0'
 }
 ```
 
