@@ -3,6 +3,7 @@ package ua.naiksoftware.stomp;
 import android.util.Log;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
@@ -33,13 +34,11 @@ import okio.ByteString;
 
     private WebSocket openedSocked;
 
-    private final Object mLifecycleLock = new Object();
-
 
     /* package */ OkHttpConnectionProvider(String uri, Map<String, String> connectHttpHeaders, OkHttpClient okHttpClient) {
         mUri = uri;
         mConnectHttpHeaders = connectHttpHeaders != null ? connectHttpHeaders : new HashMap<>();
-        mLifecycleEmitters = new ArrayList<>();
+        mLifecycleEmitters = Collections.synchronizedList(new ArrayList<>());
         mMessagesEmitters = new ArrayList<>();
         mOkHttpClient = okHttpClient;
     }
@@ -133,7 +132,7 @@ import okio.ByteString;
     public Flowable<LifecycleEvent> getLifecycleReceiver() {
         return Flowable.<LifecycleEvent>create(mLifecycleEmitters::add, BackpressureStrategy.BUFFER)
                 .doOnCancel(() -> {
-                    synchronized (mLifecycleLock) {
+                    synchronized (mLifecycleEmitters) {
                         Iterator<FlowableEmitter<? super LifecycleEvent>> iterator = mLifecycleEmitters.iterator();
                         while (iterator.hasNext()) {
                             if (iterator.next().isCancelled()) iterator.remove();
@@ -158,7 +157,7 @@ import okio.ByteString;
     }
 
     private void emitLifecycleEvent(LifecycleEvent lifecycleEvent) {
-        synchronized (mLifecycleLock) {
+        synchronized (mLifecycleEmitters) {
             Log.d(TAG, "Emit lifecycle event: " + lifecycleEvent.getType().name());
             for (FlowableEmitter<? super LifecycleEvent> subscriber : mLifecycleEmitters) {
                 subscriber.onNext(lifecycleEvent);

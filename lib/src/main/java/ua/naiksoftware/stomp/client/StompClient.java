@@ -35,7 +35,7 @@ public class StompClient {
 
     private Disposable mMessagesDisposable;
     private Disposable mLifecycleDisposable;
-    private Map<String, Set<FlowableEmitter<? super StompMessage>>> mEmitters = new ConcurrentHashMap<>();
+    private Map<String, Set<FlowableEmitter<? super StompMessage>>> mEmitters = Collections.synchronizedMap(new HashMap<>());
     private List<ConnectableFlowable<Void>> mWaitConnectionFlowables;
     private final ConnectionProvider mConnectionProvider;
     private HashMap<String, String> mTopics;
@@ -141,12 +141,14 @@ public class StompClient {
 
     private void callSubscribers(StompMessage stompMessage) {
         String messageDestination = stompMessage.findHeader(StompHeader.DESTINATION);
-        for (String dest : mEmitters.keySet()) {
-            if (dest.equals(messageDestination)) {
-                for (FlowableEmitter<? super StompMessage> subscriber : mEmitters.get(dest)) {
-                    subscriber.onNext(stompMessage);
+        synchronized (mEmitters) {
+            for (String dest : mEmitters.keySet()) {
+                if (dest.equals(messageDestination)) {
+                    for (FlowableEmitter<? super StompMessage> subscriber : mEmitters.get(dest)) {
+                        subscriber.onNext(stompMessage);
+                    }
+                    return;
                 }
-                return;
             }
         }
     }
@@ -167,27 +169,31 @@ public class StompClient {
 
     public Flowable<StompMessage> topic(String destinationPath, List<StompHeader> headerList) {
        return Flowable.<StompMessage>create(emitter -> {
-           Set<FlowableEmitter<? super StompMessage>> emittersSet = mEmitters.get(destinationPath);
-           if (emittersSet == null) {
-               emittersSet = new HashSet<>();
-               mEmitters.put(destinationPath, emittersSet);
-               subscribePath(destinationPath, headerList).subscribe();
+           synchronized (mEmitters) {
+               Set<FlowableEmitter<? super StompMessage>> emittersSet = mEmitters.get(destinationPath);
+               if (emittersSet == null) {
+                   emittersSet = new HashSet<>();
+                   mEmitters.put(destinationPath, emittersSet);
+                   subscribePath(destinationPath, headerList).subscribe();
+               }
+               emittersSet.add(emitter);
            }
-           emittersSet.add(emitter);
        }, BackpressureStrategy.BUFFER)
            .doOnCancel(() -> {
-               Iterator<String> mapIterator = mEmitters.keySet().iterator();
-               while (mapIterator.hasNext()) {
-                   String destinationUrl = mapIterator.next();
-                   Set<FlowableEmitter<? super StompMessage>> set = mEmitters.get(destinationUrl);
-                   Iterator<FlowableEmitter<? super StompMessage>> setIterator = set.iterator();
-                   while (setIterator.hasNext()) {
-                       FlowableEmitter<? super StompMessage> subscriber = setIterator.next();
-                       if (subscriber.isCancelled()) {
-                           setIterator.remove();
-                           if (set.size() < 1) {
-                               mapIterator.remove();
-                               unsubscribePath(destinationUrl).subscribe();
+               synchronized (mEmitters) {
+                   Iterator<String> mapIterator = mEmitters.keySet().iterator();
+                   while (mapIterator.hasNext()) {
+                       String destinationUrl = mapIterator.next();
+                       Set<FlowableEmitter<? super StompMessage>> set = mEmitters.get(destinationUrl);
+                       Iterator<FlowableEmitter<? super StompMessage>> setIterator = set.iterator();
+                       while (setIterator.hasNext()) {
+                           FlowableEmitter<? super StompMessage> subscriber = setIterator.next();
+                           if (subscriber.isCancelled()) {
+                               setIterator.remove();
+                               if (set.size() < 1) {
+                                   mapIterator.remove();
+                                   unsubscribePath(destinationUrl).subscribe();
+                               }
                            }
                        }
                    }
