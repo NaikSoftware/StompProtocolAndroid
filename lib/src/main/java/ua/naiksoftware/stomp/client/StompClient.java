@@ -131,9 +131,9 @@ public class StompClient {
     public Flowable<Void> send(StompMessage stompMessage) {
         Flowable<Void> flowable = mConnectionProvider.send(stompMessage.compile());
         if (!mConnected) {
-            ConnectableFlowable<Void> deffered = flowable.publish();
-            mWaitConnectionFlowables.add(deffered);
-            return deffered;
+            ConnectableFlowable<Void> deferred = flowable.publish();
+            mWaitConnectionFlowables.add(deferred);
+            return deferred;
         } else {
             return flowable;
         }
