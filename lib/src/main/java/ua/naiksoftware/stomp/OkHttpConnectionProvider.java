@@ -46,7 +46,7 @@ import okio.ByteString;
     @Override
     public Flowable<String> messages() {
         Flowable<String> flowable = Flowable.<String>create(mMessagesEmitters::add, BackpressureStrategy.BUFFER)
-                .doOnCancel(() -> {
+                .doFinally(() -> {
                     Iterator<FlowableEmitter<? super String>> iterator = mMessagesEmitters.iterator();
                     while (iterator.hasNext()) {
                         if (iterator.next().isCancelled()) iterator.remove();
@@ -131,7 +131,7 @@ import okio.ByteString;
     @Override
     public Flowable<LifecycleEvent> getLifecycleReceiver() {
         return Flowable.<LifecycleEvent>create(mLifecycleEmitters::add, BackpressureStrategy.BUFFER)
-                .doOnCancel(() -> {
+                .doFinally(() -> {
                     synchronized (mLifecycleEmitters) {
                         Iterator<FlowableEmitter<? super LifecycleEvent>> iterator = mLifecycleEmitters.iterator();
                         while (iterator.hasNext()) {

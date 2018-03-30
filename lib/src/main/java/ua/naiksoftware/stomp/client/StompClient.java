@@ -35,7 +35,7 @@ public class StompClient {
 
     private Disposable mMessagesDisposable;
     private Disposable mLifecycleDisposable;
-    private Map<String, Set<FlowableEmitter<? super StompMessage>>> mEmitters = Collections.synchronizedMap(new HashMap<>());
+    private final Map<String, Set<FlowableEmitter<? super StompMessage>>> mEmitters = Collections.synchronizedMap(new HashMap<>());
     private List<ConnectableFlowable<Void>> mWaitConnectionFlowables;
     private final ConnectionProvider mConnectionProvider;
     private HashMap<String, String> mTopics;
@@ -179,7 +179,7 @@ public class StompClient {
                emittersSet.add(emitter);
            }
        }, BackpressureStrategy.BUFFER)
-           .doOnCancel(() -> {
+           .doFinally(() -> {
                synchronized (mEmitters) {
                    Iterator<String> mapIterator = mEmitters.keySet().iterator();
                    while (mapIterator.hasNext()) {
