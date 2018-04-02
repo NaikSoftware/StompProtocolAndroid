@@ -132,9 +132,9 @@ public class StompClient {
     }
 
     public Completable send(StompMessage stompMessage) {
-        return mConnectionSignal.filter(connected -> connected).ignoreElements()
-                .doOnSubscribe(this::manage)
-                .concatWith(mConnectionProvider.send(stompMessage.compile()));
+        return mConnectionSignal.filter(connected -> connected).firstOrError().toCompletable()
+                .concatWith(mConnectionProvider.send(stompMessage.compile()))
+                .doOnSubscribe(this::manage);
     }
 
     public Flowable<LifecycleEvent> lifecycle() {
