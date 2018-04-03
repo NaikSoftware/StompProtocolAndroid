@@ -160,7 +160,6 @@ public class StompClient {
                 .filter(isConnected -> isConnected)
                 .firstOrError().toCompletable();
         return completable
-                .startWith(mConnectionProvider.disconnect())
                 .startWith(connectionComplete);
     }
 
