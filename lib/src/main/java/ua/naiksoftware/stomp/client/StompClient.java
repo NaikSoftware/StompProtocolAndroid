@@ -132,7 +132,6 @@ public class StompClient {
                 .subscribe(stompMessage -> {
                     mConnected = true;
                     isConnecting = false;
-//                    mConnectionFuture.complete(true);
                 });
     }
 

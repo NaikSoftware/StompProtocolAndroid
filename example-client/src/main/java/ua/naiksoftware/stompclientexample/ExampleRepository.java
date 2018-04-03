@@ -1,5 +1,6 @@
 package ua.naiksoftware.stompclientexample;
 
+import io.reactivex.Completable;
 import io.reactivex.Flowable;
 import retrofit2.http.POST;
 import retrofit2.http.Query;
@@ -10,5 +11,5 @@ import retrofit2.http.Query;
 public interface ExampleRepository {
 
     @POST("hello-convert-and-send")
-    Flowable<Void> sendRestEcho(@Query("msg") String message);
+    Completable sendRestEcho(@Query("msg") String message);
 }
