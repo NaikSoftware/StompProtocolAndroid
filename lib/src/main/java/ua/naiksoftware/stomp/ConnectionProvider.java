@@ -33,6 +33,4 @@ public interface ConnectionProvider {
     Completable disconnect();
 
     Completable setHeartbeat(int ms);
-
-    Flowable<Boolean> connected();
 }

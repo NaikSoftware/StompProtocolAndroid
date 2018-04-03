@@ -93,7 +93,6 @@ class OkHttpConnectionProvider extends AbstractConnectionProvider {
                 }
 
         );
-        mConnectionStream.onNext(true);
     }
 
     @Override

@@ -4,14 +4,8 @@ import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
 import android.util.Log;
 
-import java.util.concurrent.TimeUnit;
-
-import io.reactivex.BackpressureStrategy;
 import io.reactivex.Completable;
-import io.reactivex.CompletableSource;
-import io.reactivex.Flowable;
 import io.reactivex.Observable;
-import io.reactivex.subjects.BehaviorSubject;
 import io.reactivex.subjects.PublishSubject;
 
 /**
@@ -28,12 +22,10 @@ abstract class AbstractConnectionProvider implements ConnectionProvider {
     private final PublishSubject<LifecycleEvent> mLifecycleStream;
     @NonNull
     private final PublishSubject<String> mMessagesStream;
-    final BehaviorSubject<Boolean> mConnectionStream;
 
     AbstractConnectionProvider() {
         mLifecycleStream = PublishSubject.create();
         mMessagesStream = PublishSubject.create();
-        mConnectionStream = BehaviorSubject.createDefault(false);
     }
 
     @NonNull
@@ -54,27 +46,13 @@ abstract class AbstractConnectionProvider implements ConnectionProvider {
 
     @Override
     public Completable disconnect() {
-        CompletableSource ex = Completable.error(new IllegalStateException("Attempted to disconnect when already disconnected"));
-
-        Completable block = mConnectionStream
-                .filter(connected -> connected).firstOrError().toCompletable()
-                .timeout(1, TimeUnit.SECONDS, ex);
-
         return Completable
-                .fromAction(this::rawDisconnect)
-                .startWith(block);
+                .fromAction(this::rawDisconnect);
     }
 
     private Completable initSocket() {
-        CompletableSource ex = Completable.error(new IllegalStateException("Attempted to connect when already connected"));
-
-        Completable block = mConnectionStream
-                .filter(connected -> !connected).firstOrError().toCompletable()
-                .timeout(1, TimeUnit.SECONDS, ex);
-
         return Completable
-                .fromAction(this::createWebSocketConnection)
-                .startWith(block);
+                .fromAction(this::createWebSocketConnection);
     }
 
     // Doesn't do anything at all, only here as a stub
@@ -130,8 +108,6 @@ abstract class AbstractConnectionProvider implements ConnectionProvider {
     void emitLifecycleEvent(@NonNull LifecycleEvent lifecycleEvent) {
         Log.d(TAG, "Emit lifecycle event: " + lifecycleEvent.getType().name());
         mLifecycleStream.onNext(lifecycleEvent);
-        if (lifecycleEvent.getType().equals(LifecycleEvent.Type.CLOSED))
-            mConnectionStream.onNext(false);
     }
 
     void emitMessage(String stompMessage) {
@@ -143,10 +119,5 @@ abstract class AbstractConnectionProvider implements ConnectionProvider {
     @Override
     public Observable<LifecycleEvent> lifecycle() {
         return mLifecycleStream;
-    }
-
-    @Override
-    public Flowable<Boolean> connected() {
-        return mConnectionStream.toFlowable(BackpressureStrategy.LATEST);
     }
 }

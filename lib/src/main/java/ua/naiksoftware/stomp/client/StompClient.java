@@ -15,6 +15,7 @@ import io.reactivex.Completable;
 import io.reactivex.CompletableSource;
 import io.reactivex.Flowable;
 import io.reactivex.disposables.Disposable;
+import io.reactivex.subjects.BehaviorSubject;
 import io.reactivex.subjects.PublishSubject;
 import ua.naiksoftware.stomp.ConnectionProvider;
 import ua.naiksoftware.stomp.LifecycleEvent;
@@ -39,6 +40,7 @@ public class StompClient {
 
     private PublishSubject<StompMessage> mMessageStream;
     private ConcurrentHashMap<String, Flowable<StompMessage>> mStreamMap;
+    private final BehaviorSubject<Boolean> mConnectionStream;
     private Parser parser;
     private Disposable mLifecycleDisposable;
     private Disposable mMessagesDisposable;
@@ -49,6 +51,7 @@ public class StompClient {
         mConnectionProvider = connectionProvider;
         mMessageStream = PublishSubject.create();
         mStreamMap = new ConcurrentHashMap<>();
+        mConnectionStream = BehaviorSubject.createDefault(false);
         parser = Parser.NONE;
     }
 
@@ -113,12 +116,12 @@ public class StompClient {
                             break;
 
                         case CLOSED:
-                            mConnected = false;
+                            setConnected(false);
                             isConnecting = false;
                             break;
 
                         case ERROR:
-                            mConnected = false;
+                            setConnected(false);
                             isConnecting = false;
                             break;
                     }
@@ -130,17 +133,24 @@ public class StompClient {
                 .doOnNext(this::callSubscribers)
                 .filter(msg -> msg.getStompCommand().equals(StompCommand.CONNECTED))
                 .subscribe(stompMessage -> {
-                    mConnected = true;
+                    setConnected(true);
                     isConnecting = false;
+
                 });
+    }
+
+    private void setConnected(boolean connected) {
+        mConnected = connected;
+        mConnectionStream.onNext(mConnected);
     }
 
     /**
      * Disconnect from server, and then reconnect with the last-used headers
      */
     public void reconnect() {
-        disconnect();
-        connect(mHeaders);
+        disconnectCompletable()
+                .subscribe(() -> connect(mHeaders),
+                        e -> Log.e(tag, "Disconnect error", e));
     }
 
     public Completable send(String destination) {
@@ -156,7 +166,7 @@ public class StompClient {
 
     public Completable send(@NonNull StompMessage stompMessage) {
         Completable completable = mConnectionProvider.send(stompMessage.compile(legacyWhitespace));
-        CompletableSource connectionComplete = mConnectionProvider.connected()
+        CompletableSource connectionComplete = mConnectionStream
                 .filter(isConnected -> isConnected)
                 .firstOrError().toCompletable();
         return completable
@@ -172,9 +182,14 @@ public class StompClient {
     }
 
     public void disconnect() {
+        disconnectCompletable().subscribe(() -> {}, e -> Log.e(tag, "Disconnect error", e));
+    }
+
+    public Completable disconnectCompletable() {
         mLifecycleDisposable.dispose();
         mMessagesDisposable.dispose();
-        mConnectionProvider.disconnect().subscribe(() -> mConnected = false, e -> Log.e(tag, "Disconnect error", e));
+        return mConnectionProvider.disconnect()
+                .doOnComplete(() -> setConnected(false));
     }
 
     public Flowable<StompMessage> topic(String destinationPath) {

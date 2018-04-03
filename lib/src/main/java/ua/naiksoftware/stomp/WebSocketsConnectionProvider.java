@@ -110,7 +110,6 @@ class WebSocketsConnectionProvider extends AbstractConnectionProvider {
 
         mWebSocketClient.connect();
         haveConnection = true;
-        mConnectionStream.onNext(true);
     }
 
     @Override
