@@ -1,7 +1,8 @@
 package ua.naiksoftware.stomp;
 
-import rx.Completable;
-import rx.Observable;
+import io.reactivex.Completable;
+import io.reactivex.Flowable;
+import io.reactivex.Observable;
 
 /**
  * Created by naik on 05.05.16.
@@ -23,7 +24,7 @@ public interface ConnectionProvider {
     /**
      * Subscribe this for receive #LifecycleEvent events
      */
-    Observable<LifecycleEvent> getLifecycleReceiver();
+    Observable<LifecycleEvent> lifecycle();
 
     /**
      * Disconnects from server. This is basically a Callable.
@@ -32,4 +33,6 @@ public interface ConnectionProvider {
     Completable disconnect();
 
     Completable setHeartbeat(int ms);
+
+    Flowable<Boolean> connected();
 }

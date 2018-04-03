@@ -6,10 +6,13 @@ import android.util.Log;
 
 import java.util.concurrent.TimeUnit;
 
-import rx.Completable;
-import rx.Observable;
-import rx.subjects.BehaviorSubject;
-import rx.subjects.PublishSubject;
+import io.reactivex.BackpressureStrategy;
+import io.reactivex.Completable;
+import io.reactivex.CompletableSource;
+import io.reactivex.Flowable;
+import io.reactivex.Observable;
+import io.reactivex.subjects.BehaviorSubject;
+import io.reactivex.subjects.PublishSubject;
 
 /**
  * Created by forresthopkinsa on 8/8/2017.
@@ -30,7 +33,7 @@ abstract class AbstractConnectionProvider implements ConnectionProvider {
     AbstractConnectionProvider() {
         mLifecycleStream = PublishSubject.create();
         mMessagesStream = PublishSubject.create();
-        mConnectionStream = BehaviorSubject.create(false);
+        mConnectionStream = BehaviorSubject.create();
     }
 
     @NonNull
@@ -51,12 +54,11 @@ abstract class AbstractConnectionProvider implements ConnectionProvider {
 
     @Override
     public Completable disconnect() {
-        Observable<Boolean> ex = Observable.error(new IllegalStateException("Attempted to disconnect when already disconnected"));
+        CompletableSource ex = Completable.error(new IllegalStateException("Attempted to disconnect when already disconnected"));
 
         Completable block = mConnectionStream
-                .first(isConnected -> isConnected)
-                .timeout(1, TimeUnit.SECONDS, ex)
-                .toCompletable();
+                .filter(connected -> connected).firstOrError().toCompletable()
+                .timeout(1, TimeUnit.SECONDS, ex);
 
         return Completable
                 .fromAction(this::rawDisconnect)
@@ -64,12 +66,11 @@ abstract class AbstractConnectionProvider implements ConnectionProvider {
     }
 
     private Completable initSocket() {
-        Observable<Boolean> ex = Observable.error(new IllegalStateException("Attempted to connect when already connected"));
+        CompletableSource ex = Completable.error(new IllegalStateException("Attempted to connect when already connected"));
 
         Completable block = mConnectionStream
-                .first(isConnected -> !isConnected)
-                .timeout(1, TimeUnit.SECONDS, ex)
-                .toCompletable();
+                .filter(connected -> !connected).firstOrError().toCompletable()
+                .timeout(1, TimeUnit.SECONDS, ex);
 
         return Completable
                 .fromAction(this::createWebSocketConnection)
@@ -140,7 +141,12 @@ abstract class AbstractConnectionProvider implements ConnectionProvider {
 
     @NonNull
     @Override
-    public Observable<LifecycleEvent> getLifecycleReceiver() {
+    public Observable<LifecycleEvent> lifecycle() {
         return mLifecycleStream;
+    }
+
+    @Override
+    public Flowable<Boolean> connected() {
+        return mConnectionStream.toFlowable(BackpressureStrategy.LATEST);
     }
 }

@@ -10,13 +10,12 @@ import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
-import java8.util.StringJoiner;
-import java8.util.concurrent.CompletableFuture;
-import rx.Completable;
-import rx.Observable;
-import rx.Subscription;
-import rx.schedulers.Schedulers;
-import rx.subjects.PublishSubject;
+import io.reactivex.BackpressureStrategy;
+import io.reactivex.Completable;
+import io.reactivex.CompletableSource;
+import io.reactivex.Flowable;
+import io.reactivex.disposables.Disposable;
+import io.reactivex.subjects.PublishSubject;
 import ua.naiksoftware.stomp.ConnectionProvider;
 import ua.naiksoftware.stomp.LifecycleEvent;
 import ua.naiksoftware.stomp.StompHeader;
@@ -39,12 +38,10 @@ public class StompClient {
     private boolean legacyWhitespace;
 
     private PublishSubject<StompMessage> mMessageStream;
-    private CompletableFuture<Boolean> mConnectionFuture;
-    private Completable mConnectionComplete;
-    private ConcurrentHashMap<String, Observable<StompMessage>> mStreamMap;
+    private ConcurrentHashMap<String, Flowable<StompMessage>> mStreamMap;
     private Parser parser;
-    private Subscription lifecycleSub;
-    private Subscription messagesSubscription;
+    private Disposable mLifecycleDisposable;
+    private Disposable mMessagesDisposable;
     private List<StompHeader> mHeaders;
     private int heartbeat;
 
@@ -52,13 +49,7 @@ public class StompClient {
         mConnectionProvider = connectionProvider;
         mMessageStream = PublishSubject.create();
         mStreamMap = new ConcurrentHashMap<>();
-        resetStatus();
         parser = Parser.NONE;
-    }
-
-    private void resetStatus() {
-        mConnectionFuture = new CompletableFuture<>();
-        mConnectionComplete = Completable.fromFuture(mConnectionFuture).subscribeOn(Schedulers.newThread());
     }
 
     public enum Parser {
@@ -109,7 +100,7 @@ public class StompClient {
         mHeaders = _headers;
 
         if (mConnected) return;
-        lifecycleSub = lifecycle()
+        mLifecycleDisposable = mConnectionProvider.lifecycle()
                 .subscribe(lifecycleEvent -> {
                     switch (lifecycleEvent.getType()) {
                         case OPENED:
@@ -134,14 +125,14 @@ public class StompClient {
                 });
 
         isConnecting = true;
-        messagesSubscription = mConnectionProvider.messages()
+        mMessagesDisposable = mConnectionProvider.messages()
                 .map(StompMessage::from)
                 .doOnNext(this::callSubscribers)
                 .filter(msg -> msg.getStompCommand().equals(StompCommand.CONNECTED))
                 .subscribe(stompMessage -> {
                     mConnected = true;
                     isConnecting = false;
-                    mConnectionFuture.complete(true);
+//                    mConnectionFuture.complete(true);
                 });
     }
 
@@ -166,37 +157,42 @@ public class StompClient {
 
     public Completable send(@NonNull StompMessage stompMessage) {
         Completable completable = mConnectionProvider.send(stompMessage.compile(legacyWhitespace));
-        return completable.startWith(mConnectionComplete);
+        CompletableSource connectionComplete = mConnectionProvider.connected()
+                .filter(isConnected -> isConnected)
+                .firstOrError().toCompletable();
+        return completable
+                .startWith(mConnectionProvider.disconnect())
+                .startWith(connectionComplete);
     }
 
     private void callSubscribers(StompMessage stompMessage) {
         mMessageStream.onNext(stompMessage);
     }
 
-    public Observable<LifecycleEvent> lifecycle() {
-        return mConnectionProvider.getLifecycleReceiver();
+    public Flowable<LifecycleEvent> lifecycle() {
+        return mConnectionProvider.lifecycle().toFlowable(BackpressureStrategy.BUFFER);
     }
 
     public void disconnect() {
-        resetStatus();
-        lifecycleSub.unsubscribe();
-        messagesSubscription.unsubscribe();
+        mLifecycleDisposable.dispose();
+        mMessagesDisposable.dispose();
         mConnectionProvider.disconnect().subscribe(() -> mConnected = false);
     }
 
-    public Observable<StompMessage> topic(String destinationPath) {
+    public Flowable<StompMessage> topic(String destinationPath) {
         return topic(destinationPath, null);
     }
 
-    public Observable<StompMessage> topic(@NonNull String destPath, List<StompHeader> headerList) {
+    public Flowable<StompMessage> topic(@NonNull String destPath, List<StompHeader> headerList) {
         if (destPath == null)
-            return Observable.error(new IllegalArgumentException("Topic path cannot be null"));
+            return Flowable.error(new IllegalArgumentException("Topic path cannot be null"));
         else if (!mStreamMap.containsKey(destPath))
             mStreamMap.put(destPath,
                     mMessageStream
                             .filter(msg -> matches(destPath, msg))
-                            .doOnSubscribe(() -> subscribePath(destPath, headerList).subscribe())
-                            .doOnUnsubscribe(() -> unsubscribePath(destPath).subscribe())
+                            .toFlowable(BackpressureStrategy.BUFFER)
+                            .doOnSubscribe(disposable -> subscribePath(destPath, headerList).subscribe())
+                            .doFinally(() -> unsubscribePath(destPath).subscribe())
                             .share()
             );
         return mStreamMap.get(destPath);
@@ -250,10 +246,12 @@ public class StompClient {
                     }
                 }
                 // at this point, 'transformed' looks like ["lorem", "ipsum", "[^.]+", "sit"]
-                StringJoiner sj = new StringJoiner("\\.");
-                for (String s : transformed)
-                    sj.add(s);
-                String join = sj.toString();
+                StringBuilder sb = new StringBuilder();
+                for (String s : transformed) {
+                    if (sb.length() > 0) sb.append("\\.");
+                    sb.append(s);
+                }
+                String join = sb.toString();
                 // join = "lorem\.ipsum\.[^.]+\.sit"
 
                 ret = dest.matches(join);
