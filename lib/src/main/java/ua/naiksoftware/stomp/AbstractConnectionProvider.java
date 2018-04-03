@@ -33,7 +33,7 @@ abstract class AbstractConnectionProvider implements ConnectionProvider {
     AbstractConnectionProvider() {
         mLifecycleStream = PublishSubject.create();
         mMessagesStream = PublishSubject.create();
-        mConnectionStream = BehaviorSubject.create();
+        mConnectionStream = BehaviorSubject.createDefault(false);
     }
 
     @NonNull
