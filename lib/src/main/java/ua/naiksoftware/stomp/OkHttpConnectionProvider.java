@@ -2,17 +2,14 @@ package ua.naiksoftware.stomp;
 
 import android.util.Log;
 
-import java.util.ArrayList;
-import java.util.Collections;
 import java.util.HashMap;
-import java.util.Iterator;
-import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
 
 import io.reactivex.BackpressureStrategy;
+import io.reactivex.Completable;
 import io.reactivex.Flowable;
-import io.reactivex.FlowableEmitter;
+import io.reactivex.subjects.PublishSubject;
 import okhttp3.Headers;
 import okhttp3.OkHttpClient;
 import okhttp3.Request;
@@ -29,8 +26,9 @@ import okio.ByteString;
     private final Map<String, String> mConnectHttpHeaders;
     private final OkHttpClient mOkHttpClient;
 
-    private final List<FlowableEmitter<? super LifecycleEvent>> mLifecycleEmitters;
-    private final List<FlowableEmitter<? super String>> mMessagesEmitters;
+    private final PublishSubject<LifecycleEvent> mLifecycleEmitter = PublishSubject.create();
+    private final PublishSubject<String> mMessagesEmitter = PublishSubject.create();
+    private final Flowable<String> mMessagesFlowable;
 
     private WebSocket openedSocked;
 
@@ -38,28 +36,40 @@ import okio.ByteString;
     /* package */ OkHttpConnectionProvider(String uri, Map<String, String> connectHttpHeaders, OkHttpClient okHttpClient) {
         mUri = uri;
         mConnectHttpHeaders = connectHttpHeaders != null ? connectHttpHeaders : new HashMap<>();
-        mLifecycleEmitters = Collections.synchronizedList(new ArrayList<>());
-        mMessagesEmitters = new ArrayList<>();
         mOkHttpClient = okHttpClient;
+
+        mMessagesFlowable = Flowable.defer(() ->
+                mMessagesEmitter.toFlowable(BackpressureStrategy.BUFFER)
+                        .doOnSubscribe(s -> createWebSocketConnection())
+                        .doFinally(() -> {
+                            Log.d(TAG, "Close web socket connection now in thread " + Thread.currentThread());
+                            if (openedSocked != null) openedSocked.close(1000, "");
+                            openedSocked = null;
+                        })
+        ).share();
+    }
+
+    @Override
+    public Completable send(String stompMessage) {
+        return Completable.create(subscriber -> {
+            if (openedSocked == null) {
+                subscriber.onError(new IllegalStateException("Not connected yet"));
+            } else {
+                Log.d(TAG, "Send STOMP message: " + stompMessage);
+                openedSocked.send(stompMessage);
+                subscriber.onComplete();
+            }
+        });
     }
 
     @Override
     public Flowable<String> messages() {
-        Flowable<String> flowable = Flowable.<String>create(mMessagesEmitters::add, BackpressureStrategy.BUFFER)
-                .doFinally(() -> {
-                    Iterator<FlowableEmitter<? super String>> iterator = mMessagesEmitters.iterator();
-                    while (iterator.hasNext()) {
-                        if (iterator.next().isCancelled()) iterator.remove();
-                    }
+        return mMessagesFlowable;
+    }
 
-                    if (mMessagesEmitters.size() < 1) {
-                        Log.d(TAG, "Close web socket connection now in thread " + Thread.currentThread());
-                        openedSocked.close(1000, "");
-                        openedSocked = null;
-                    }
-                });
-        createWebSocketConnection();
-        return flowable;
+    @Override
+    public Flowable<LifecycleEvent> getLifecycleReceiver() {
+        return mLifecycleEmitter.toFlowable(BackpressureStrategy.BUFFER);
     }
 
     private void createWebSocketConnection() {
@@ -105,7 +115,7 @@ import okio.ByteString;
                     public void onFailure(WebSocket webSocket, Throwable t, Response response) {
                         emitLifecycleEvent(new LifecycleEvent(LifecycleEvent.Type.ERROR, new Exception(t)));
                     }
-                    
+
                     @Override
                     public void onClosing(final WebSocket webSocket, final int code, final String reason) {
                         webSocket.close(code, reason);
@@ -113,32 +123,6 @@ import okio.ByteString;
                 }
 
         );
-    }
-
-    @Override
-    public Flowable<Void> send(String stompMessage) {
-        return Flowable.create(subscriber -> {
-            if (openedSocked == null) {
-                subscriber.onError(new IllegalStateException("Not connected yet"));
-            } else {
-                Log.d(TAG, "Send STOMP message: " + stompMessage);
-                openedSocked.send(stompMessage);
-                subscriber.onComplete();
-            }
-        }, BackpressureStrategy.BUFFER);
-    }
-
-    @Override
-    public Flowable<LifecycleEvent> getLifecycleReceiver() {
-        return Flowable.<LifecycleEvent>create(mLifecycleEmitters::add, BackpressureStrategy.BUFFER)
-                .doFinally(() -> {
-                    synchronized (mLifecycleEmitters) {
-                        Iterator<FlowableEmitter<? super LifecycleEvent>> iterator = mLifecycleEmitters.iterator();
-                        while (iterator.hasNext()) {
-                            if (iterator.next().isCancelled()) iterator.remove();
-                        }
-                    }
-                });
     }
 
     private TreeMap<String, String> headersAsMap(Response response) {
@@ -157,18 +141,12 @@ import okio.ByteString;
     }
 
     private void emitLifecycleEvent(LifecycleEvent lifecycleEvent) {
-        synchronized (mLifecycleEmitters) {
-            Log.d(TAG, "Emit lifecycle event: " + lifecycleEvent.getType().name());
-            for (FlowableEmitter<? super LifecycleEvent> subscriber : mLifecycleEmitters) {
-                subscriber.onNext(lifecycleEvent);
-            }
-        }
+        Log.d(TAG, "Emit lifecycle event: " + lifecycleEvent.getType().name());
+        mLifecycleEmitter.onNext(lifecycleEvent);
     }
 
     private void emitMessage(String stompMessage) {
         Log.d(TAG, "Emit STOMP message: " + stompMessage);
-        for (FlowableEmitter<? super String> subscriber : mMessagesEmitters) {
-            subscriber.onNext(stompMessage);
-        }
+        mMessagesEmitter.onNext(stompMessage);
     }
 }

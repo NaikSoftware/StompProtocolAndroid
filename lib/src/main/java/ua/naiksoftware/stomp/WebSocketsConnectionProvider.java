@@ -10,10 +10,8 @@ import org.java_websocket.handshake.ClientHandshake;
 import org.java_websocket.handshake.ServerHandshake;
 
 import java.net.URI;
-import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Iterator;
-import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
 
@@ -21,8 +19,9 @@ import javax.net.ssl.SSLContext;
 import javax.net.ssl.SSLSocketFactory;
 
 import io.reactivex.BackpressureStrategy;
+import io.reactivex.Completable;
 import io.reactivex.Flowable;
-import io.reactivex.FlowableEmitter;
+import io.reactivex.subjects.PublishSubject;
 
 /**
  * Created by naik on 05.05.16.
@@ -34,14 +33,12 @@ import io.reactivex.FlowableEmitter;
     private final String mUri;
     private final Map<String, String> mConnectHttpHeaders;
 
-    private final List<FlowableEmitter<? super LifecycleEvent>> mLifecycleEmitters;
-    private final List<FlowableEmitter<? super String>> mMessagesEmitters;
-
+    private final PublishSubject<LifecycleEvent> mLifecycleEmitter = PublishSubject.create();
+    private final PublishSubject<String> mMessagesEmitter = PublishSubject.create();
+    private final Flowable<String> mMessagesFlowable;
     private WebSocketClient mWebSocketClient;
     private boolean haveConnection;
     private TreeMap<String, String> mServerHandshakeHeaders;
-
-    private final Object mLifecycleLock = new Object();
 
     /**
      * Support UIR scheme ws://host:port/path
@@ -51,26 +48,20 @@ import io.reactivex.FlowableEmitter;
     /* package */ WebSocketsConnectionProvider(String uri, Map<String, String> connectHttpHeaders) {
         mUri = uri;
         mConnectHttpHeaders = connectHttpHeaders != null ? connectHttpHeaders : new HashMap<>();
-        mLifecycleEmitters = new ArrayList<>();
-        mMessagesEmitters = new ArrayList<>();
+
+        mMessagesFlowable = Flowable.defer(() ->
+                mMessagesEmitter.toFlowable(BackpressureStrategy.BUFFER)
+                        .doOnSubscribe(s -> createWebSocketConnection())
+                        .doFinally(() -> {
+                            Log.d(TAG, "Close web socket connection now in thread " + Thread.currentThread());
+                            mWebSocketClient.close();
+                        })
+        ).share();
     }
 
     @Override
     public Flowable<String> messages() {
-        Flowable<String> flowable = Flowable.<String>create(mMessagesEmitters::add, BackpressureStrategy.BUFFER)
-                .doFinally(() -> {
-                    Iterator<FlowableEmitter<? super String>> iterator = mMessagesEmitters.iterator();
-                    while (iterator.hasNext()) {
-                        if (iterator.next().isCancelled()) iterator.remove();
-                    }
-
-                    if (mMessagesEmitters.size() < 1) {
-                        Log.d(TAG, "Close web socket connection now in thread " + Thread.currentThread());
-                        mWebSocketClient.close();
-                    }
-                });
-        createWebSocketConnection();
-        return flowable;
+        return mMessagesFlowable;
     }
 
     private void createWebSocketConnection() {
@@ -134,8 +125,8 @@ import io.reactivex.FlowableEmitter;
     }
 
     @Override
-    public Flowable<Void> send(String stompMessage) {
-        return Flowable.create(emitter -> {
+    public Completable send(String stompMessage) {
+        return Completable.create(emitter -> {
             if (mWebSocketClient == null) {
                 emitter.onError(new IllegalStateException("Not connected yet"));
             } else {
@@ -143,35 +134,21 @@ import io.reactivex.FlowableEmitter;
                 mWebSocketClient.send(stompMessage);
                 emitter.onComplete();
             }
-        }, BackpressureStrategy.BUFFER);
+        });
     }
 
     private void emitLifecycleEvent(LifecycleEvent lifecycleEvent) {
-        synchronized (mLifecycleLock) {
-            Log.d(TAG, "Emit lifecycle event: " + lifecycleEvent.getType().name());
-            for (FlowableEmitter<? super LifecycleEvent> emitter : mLifecycleEmitters) {
-                emitter.onNext(lifecycleEvent);
-            }
-        }
+        Log.d(TAG, "Emit lifecycle event: " + lifecycleEvent.getType().name());
+        mLifecycleEmitter.onNext(lifecycleEvent);
     }
 
     private void emitMessage(String stompMessage) {
         Log.d(TAG, "Emit STOMP message: " + stompMessage);
-        for (FlowableEmitter<? super String> emitter : mMessagesEmitters) {
-            emitter.onNext(stompMessage);
-        }
+        mMessagesEmitter.onNext(stompMessage);
     }
 
     @Override
     public Flowable<LifecycleEvent> getLifecycleReceiver() {
-        return Flowable.<LifecycleEvent>create(mLifecycleEmitters::add, BackpressureStrategy.BUFFER)
-                .doFinally(() -> {
-                    synchronized (mLifecycleLock) {
-                        Iterator<FlowableEmitter<? super LifecycleEvent>> iterator = mLifecycleEmitters.iterator();
-                        while (iterator.hasNext()) {
-                            if (iterator.next().isCancelled()) iterator.remove();
-                        }
-                    }
-                });
+        return mLifecycleEmitter.toFlowable(BackpressureStrategy.BUFFER);
     }
 }

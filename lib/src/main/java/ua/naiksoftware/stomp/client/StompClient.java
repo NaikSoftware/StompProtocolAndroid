@@ -5,20 +5,18 @@ import android.util.Log;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.HashSet;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.UUID;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.CopyOnWriteArrayList;
 
 import io.reactivex.BackpressureStrategy;
+import io.reactivex.Completable;
 import io.reactivex.Flowable;
-import io.reactivex.FlowableEmitter;
+import io.reactivex.disposables.CompositeDisposable;
 import io.reactivex.disposables.Disposable;
-import io.reactivex.flowables.ConnectableFlowable;
+import io.reactivex.disposables.Disposables;
+import io.reactivex.subjects.BehaviorSubject;
+import io.reactivex.subjects.PublishSubject;
 import ua.naiksoftware.stomp.ConnectionProvider;
 import ua.naiksoftware.stomp.LifecycleEvent;
 import ua.naiksoftware.stomp.StompHeader;
@@ -28,23 +26,27 @@ import ua.naiksoftware.stomp.StompHeader;
  */
 public class StompClient {
 
-    private static final String TAG = StompClient.class.getSimpleName();
-
     public static final String SUPPORTED_VERSIONS = "1.1,1.0";
     public static final String DEFAULT_ACK = "auto";
-
-    private Disposable mMessagesDisposable;
-    private Disposable mLifecycleDisposable;
-    private final Map<String, Set<FlowableEmitter<? super StompMessage>>> mEmitters = Collections.synchronizedMap(new HashMap<>());
-    private List<ConnectableFlowable<Void>> mWaitConnectionFlowables;
+    private static final String TAG = StompClient.class.getSimpleName();
+    private final CompositeDisposable mCompositeDisposable = new CompositeDisposable();
+    private final Map<String, SharedEmitter> mEmitters = Collections.synchronizedMap(new HashMap<>());
+    private final BehaviorSubject<Boolean> mConnectionSignal = BehaviorSubject.create();
     private final ConnectionProvider mConnectionProvider;
-    private HashMap<String, String> mTopics;
+    private final Map<String, String> mTopics = Collections.synchronizedMap(new HashMap<>());
     private boolean mConnected;
     private boolean isConnecting;
 
     public StompClient(ConnectionProvider connectionProvider) {
         mConnectionProvider = connectionProvider;
-        mWaitConnectionFlowables = new CopyOnWriteArrayList<>();
+    }
+
+    public boolean isConnected() {
+        return mConnected;
+    }
+
+    public boolean isConnecting() {
+        return isConnecting;
     }
 
     /**
@@ -61,175 +63,166 @@ public class StompClient {
     /**
      * Connect without reconnect if connected
      *
-     * @param _headers might be null
+     * @param headers might be null
      */
-    public void connect(List<StompHeader> _headers) {
-        connect(_headers, false);
+    public void connect(List<StompHeader> headers) {
+        connect(headers, false);
     }
 
     /**
      * If already connected and reconnect=false - nope
      *
-     * @param _headers might be null
+     * @param headers might be null
      */
-    public void connect(List<StompHeader> _headers, boolean reconnect) {
+    public void connect(List<StompHeader> headers, boolean reconnect) {
         if (reconnect) disconnect();
         if (mConnected) return;
-        mLifecycleDisposable = mConnectionProvider.getLifecycleReceiver()
-                .subscribe(lifecycleEvent -> {
-                    switch (lifecycleEvent.getType()) {
-                        case OPENED:
-                            List<StompHeader> headers = new ArrayList<>();
-                            headers.add(new StompHeader(StompHeader.VERSION, SUPPORTED_VERSIONS));
-                            if (_headers != null) headers.addAll(_headers);
-                            mConnectionProvider.send(new StompMessage(StompCommand.CONNECT, headers, null).compile())
-                                    .subscribe();
-                            break;
+        manage(
+                mConnectionProvider.getLifecycleReceiver()
+                        .subscribe(lifecycleEvent -> {
+                            switch (lifecycleEvent.getType()) {
+                                case OPENED:
+                                    List<StompHeader> headerList = new ArrayList<>();
+                                    headerList.add(new StompHeader(StompHeader.VERSION, SUPPORTED_VERSIONS));
+                                    if (headers != null) headerList.addAll(headers);
+                                    mConnectionProvider.send(
+                                            new StompMessage(StompCommand.CONNECT, headerList, null).compile()
+                                    ).subscribe();
+                                    break;
 
-                        case CLOSED:
-                            mConnected = false;
-                            isConnecting = false;
-                            break;
+                                case CLOSED:
+                                    setConnected(false);
+                                    isConnecting = false;
+                                    break;
 
-                        case ERROR:
-                            mConnected = false;
-                            isConnecting = false;
-                            break;
-                    }
-                });
+                                case ERROR:
+                                    setConnected(false);
+                                    isConnecting = false;
+                                    break;
+                            }
+                        })
+        );
 
         isConnecting = true;
-        mMessagesDisposable = mConnectionProvider.messages()
-                .map(StompMessage::from)
-                .subscribe(stompMessage -> {
-                    if (stompMessage.getStompCommand().equals(StompCommand.CONNECTED)) {
-                        mConnected = true;
-                        isConnecting = false;
-                        for (ConnectableFlowable<Void> flowable : mWaitConnectionFlowables) {
-                            flowable.connect();
-                        }
-                        mWaitConnectionFlowables.clear();
-                    }
-                    callSubscribers(stompMessage);
-                });
+        manage(
+                mConnectionProvider.messages()
+                        .map(StompMessage::from)
+                        .subscribe(stompMessage -> {
+                            if (StompCommand.CONNECTED.equals(stompMessage.getStompCommand())) {
+                                setConnected(true);
+                                isConnecting = false;
+                            }
+                            callSubscribers(stompMessage);
+                        })
+        );
     }
 
-    public Flowable<Void> send(String destination) {
+    public Completable send(String destination) {
         return send(new StompMessage(
                 StompCommand.SEND,
                 Collections.singletonList(new StompHeader(StompHeader.DESTINATION, destination)),
                 null));
     }
 
-    public Flowable<Void> send(String destination, String data) {
+    public Completable send(String destination, String data) {
         return send(new StompMessage(
                 StompCommand.SEND,
                 Collections.singletonList(new StompHeader(StompHeader.DESTINATION, destination)),
                 data));
     }
 
-    public Flowable<Void> send(StompMessage stompMessage) {
-        Flowable<Void> flowable = mConnectionProvider.send(stompMessage.compile());
-        if (!mConnected) {
-            ConnectableFlowable<Void> deferred = flowable.publish();
-            mWaitConnectionFlowables.add(deferred);
-            return deferred;
-        } else {
-            return flowable;
-        }
-    }
-
-    private void callSubscribers(StompMessage stompMessage) {
-        String messageDestination = stompMessage.findHeader(StompHeader.DESTINATION);
-        synchronized (mEmitters) {
-            for (String dest : mEmitters.keySet()) {
-                if (dest.equals(messageDestination)) {
-                    for (FlowableEmitter<? super StompMessage> subscriber : mEmitters.get(dest)) {
-                        subscriber.onNext(stompMessage);
-                    }
-                    return;
-                }
-            }
-        }
+    public Completable send(StompMessage stompMessage) {
+        return mConnectionSignal.filter(connected -> connected).firstOrError().toCompletable()
+                .concatWith(mConnectionProvider.send(stompMessage.compile()))
+                .doOnSubscribe(this::manage);
     }
 
     public Flowable<LifecycleEvent> lifecycle() {
-        return mConnectionProvider.getLifecycleReceiver();
+        return mConnectionProvider.getLifecycleReceiver()
+                .doOnSubscribe(subscription -> manage(Disposables.fromSubscription(subscription)));
     }
 
     public void disconnect() {
-        if (mMessagesDisposable != null) mMessagesDisposable.dispose();
-        if (mLifecycleDisposable != null) mLifecycleDisposable.dispose();
-        mConnected = false;
+        mCompositeDisposable.clear();
+        setConnected(false);
     }
 
     public Flowable<StompMessage> topic(String destinationPath) {
         return topic(destinationPath, null);
     }
 
-    public Flowable<StompMessage> topic(String destinationPath, List<StompHeader> headerList) {
-       return Flowable.<StompMessage>create(emitter -> {
-           synchronized (mEmitters) {
-               Set<FlowableEmitter<? super StompMessage>> emittersSet = mEmitters.get(destinationPath);
-               if (emittersSet == null) {
-                   emittersSet = new HashSet<>();
-                   mEmitters.put(destinationPath, emittersSet);
-                   subscribePath(destinationPath, headerList).subscribe();
-               }
-               emittersSet.add(emitter);
-           }
-       }, BackpressureStrategy.BUFFER)
-           .doFinally(() -> {
-               synchronized (mEmitters) {
-                   Iterator<String> mapIterator = mEmitters.keySet().iterator();
-                   while (mapIterator.hasNext()) {
-                       String destinationUrl = mapIterator.next();
-                       Set<FlowableEmitter<? super StompMessage>> set = mEmitters.get(destinationUrl);
-                       Iterator<FlowableEmitter<? super StompMessage>> setIterator = set.iterator();
-                       while (setIterator.hasNext()) {
-                           FlowableEmitter<? super StompMessage> subscriber = setIterator.next();
-                           if (subscriber.isCancelled()) {
-                               setIterator.remove();
-                               if (set.size() < 1) {
-                                   mapIterator.remove();
-                                   unsubscribePath(destinationUrl).subscribe();
-                               }
-                           }
-                       }
-                   }
-               }
-           });
-   }
+    private void callSubscribers(StompMessage stompMessage) {
+        String messageDestination = stompMessage.findHeader(StompHeader.DESTINATION);
+        SharedEmitter sharedEmitter = mEmitters.get(messageDestination);
+        if (sharedEmitter != null) sharedEmitter.emitter.onNext(stompMessage);
+    }
 
-    private Flowable<Void> subscribePath(String destinationPath, List<StompHeader> headerList) {
-          if (destinationPath == null) return Flowable.empty();
-          String topicId = UUID.randomUUID().toString();
+    public Flowable<StompMessage> topic(final String destinationPath, final List<StompHeader> headerList) {
+        return Flowable.defer(() -> {
+                    synchronized (mEmitters) {
+                        SharedEmitter sharedEmitter = mEmitters.get(destinationPath);
+                        if (sharedEmitter == null) {
+                            PublishSubject<StompMessage> emitter = PublishSubject.create();
+                            Flowable<StompMessage> sharedFlowable = emitter.toFlowable(BackpressureStrategy.BUFFER)
+                                    .doOnSubscribe(subscription -> {
+                                        manage(Disposables.fromSubscription(subscription));
+                                        subscribePath(destinationPath, headerList).subscribe();
+                                    })
+                                    .doFinally(() -> {
+                                        synchronized (mEmitters) {
+                                            mEmitters.remove(destinationPath);
+                                            unsubscribePath(destinationPath).subscribe();
+                                        }
+                                    })
+                                    .share();
+                            sharedEmitter = new SharedEmitter(emitter, sharedFlowable);
+                            mEmitters.put(destinationPath, sharedEmitter);
+                        }
+                        return sharedEmitter.sharedFlowable;
+                    }
+                }
+        );
 
-          if (mTopics == null) mTopics = new HashMap<>();
-          mTopics.put(destinationPath, topicId);
-          List<StompHeader> headers = new ArrayList<>();
-          headers.add(new StompHeader(StompHeader.ID, topicId));
-          headers.add(new StompHeader(StompHeader.DESTINATION, destinationPath));
-          headers.add(new StompHeader(StompHeader.ACK, DEFAULT_ACK));
-          if (headerList != null) headers.addAll(headerList);
-          return send(new StompMessage(StompCommand.SUBSCRIBE,
-                  headers, null));
-      }
+    }
 
+    private Completable subscribePath(String destinationPath, List<StompHeader> headerList) {
+        if (destinationPath == null) return Completable.complete();
+        String topicId = UUID.randomUUID().toString();
+        mTopics.put(destinationPath, topicId);
+        List<StompHeader> headers = new ArrayList<>();
+        headers.add(new StompHeader(StompHeader.ID, topicId));
+        headers.add(new StompHeader(StompHeader.DESTINATION, destinationPath));
+        headers.add(new StompHeader(StompHeader.ACK, DEFAULT_ACK));
+        if (headerList != null) headers.addAll(headerList);
+        return send(new StompMessage(StompCommand.SUBSCRIBE, headers, null));
+    }
 
-    private Flowable<Void> unsubscribePath(String dest) {
+    private Completable unsubscribePath(String dest) {
         String topicId = mTopics.get(dest);
         Log.d(TAG, "Unsubscribe path: " + dest + " id: " + topicId);
 
-        return send(new StompMessage(StompCommand.UNSUBSCRIBE,
-                Collections.singletonList(new StompHeader(StompHeader.ID, topicId)), null));
+        return send(new StompMessage(
+                StompCommand.UNSUBSCRIBE,
+                Collections.singletonList(new StompHeader(StompHeader.ID, topicId)),
+                null));
     }
 
-    public boolean isConnected() {
-        return mConnected;
+    private void setConnected(boolean connected) {
+        mConnected = connected;
+        mConnectionSignal.onNext(mConnected);
     }
 
-    public boolean isConnecting() {
-        return isConnecting;
+    private void manage(Disposable disposable) {
+        mCompositeDisposable.add(disposable);
+    }
+
+    private static class SharedEmitter {
+        public final PublishSubject<StompMessage> emitter;
+        public final Flowable<StompMessage> sharedFlowable;
+
+        private SharedEmitter(PublishSubject<StompMessage> emitter, Flowable<StompMessage> sharedFlowable) {
+            this.emitter = emitter;
+            this.sharedFlowable = sharedFlowable;
+        }
     }
 }

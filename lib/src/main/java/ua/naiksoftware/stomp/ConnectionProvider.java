@@ -1,5 +1,6 @@
 package ua.naiksoftware.stomp;
 
+import io.reactivex.Completable;
 import io.reactivex.Flowable;
 
 /**
@@ -17,7 +18,7 @@ public interface ConnectionProvider {
      * onError if not connected or error detected will be called, or onCompleted id sending started
      * TODO: send messages with ACK
      */
-    Flowable<Void> send(String stompMessage);
+    Completable send(String stompMessage);
 
     /**
      * Subscribe this for receive #LifecycleEvent events
