@@ -1,6 +1,5 @@
-<manifest xmlns:android="http://schemas.android.com/apk/res/android"
-          package="ua.naiksoftware.stomp">
+<manifest package="com.github.forresthopkinsa">
 
-    <application/>
+    <application />
 
 </manifest>

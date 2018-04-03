@@ -11,15 +11,13 @@ import android.widget.Toast;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 
-import org.java_websocket.WebSocket;
-
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
 import java.util.Locale;
 
-import io.reactivex.FlowableTransformer;
+import io.reactivex.CompletableTransformer;
 import io.reactivex.android.schedulers.AndroidSchedulers;
 import io.reactivex.disposables.Disposable;
 import io.reactivex.schedulers.Schedulers;
@@ -56,7 +54,7 @@ public class MainActivity extends AppCompatActivity {
     }
 
     public void connectStomp(View view) {
-        mStompClient = Stomp.over(WebSocket.class, "ws://" + ANDROID_EMULATOR_LOCALHOST
+        mStompClient = Stomp.over(Stomp.ConnectionProvider.JWS, "ws://" + ANDROID_EMULATOR_LOCALHOST
                 + ":" + RestClient.SERVER_PORT + "/example-endpoint/websocket");
 
         mStompClient.lifecycle()
@@ -91,7 +89,7 @@ public class MainActivity extends AppCompatActivity {
     public void sendEchoViaStomp(View v) {
         mStompClient.send("/topic/hello-msg-mapping", "Echo STOMP " + mTimeFormat.format(new Date()))
                 .compose(applySchedulers())
-                .subscribe(aVoid -> {
+                .subscribe(() -> {
                     Log.d(TAG, "STOMP echo send successfully");
                 }, throwable -> {
                     Log.e(TAG, "Error send STOMP echo", throwable);
@@ -103,7 +101,7 @@ public class MainActivity extends AppCompatActivity {
         mRestPingDisposable = RestClient.getInstance().getExampleRepository()
                 .sendRestEcho("Echo REST " + mTimeFormat.format(new Date()))
                 .compose(applySchedulers())
-                .subscribe(aVoid -> {
+                .subscribe(() -> {
                     Log.d(TAG, "REST echo send successfully");
                 }, throwable -> {
                     Log.e(TAG, "Error send REST echo", throwable);
@@ -122,8 +120,8 @@ public class MainActivity extends AppCompatActivity {
         Toast.makeText(this, text, Toast.LENGTH_SHORT).show();
     }
 
-    protected <T> FlowableTransformer<T, T> applySchedulers() {
-        return tFlowable -> tFlowable
+    protected CompletableTransformer applySchedulers() {
+        return upstream -> upstream
                 .unsubscribeOn(Schedulers.newThread())
                 .subscribeOn(Schedulers.io())
                 .observeOn(AndroidSchedulers.mainThread());
