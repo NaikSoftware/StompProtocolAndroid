@@ -175,7 +175,7 @@ public class StompClient {
     public void disconnect() {
         mLifecycleDisposable.dispose();
         mMessagesDisposable.dispose();
-        mConnectionProvider.disconnect().subscribe(() -> mConnected = false);
+        mConnectionProvider.disconnect().subscribe(() -> mConnected = false, e -> Log.e(tag, "Disconnect error", e));
     }
 
     public Flowable<StompMessage> topic(String destinationPath) {
