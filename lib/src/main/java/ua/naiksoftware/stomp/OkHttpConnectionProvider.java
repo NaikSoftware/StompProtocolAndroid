@@ -37,7 +37,9 @@ class OkHttpConnectionProvider extends AbstractConnectionProvider {
     @NonNull
     @Override
     public void rawDisconnect() {
-        openedSocked.close(1000, "");
+        if (openedSocked != null) {
+            openedSocked.close(1000, "");
+        }
     }
 
     @Override
