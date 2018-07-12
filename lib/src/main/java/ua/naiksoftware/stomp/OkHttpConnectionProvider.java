@@ -47,7 +47,7 @@ class OkHttpConnectionProvider extends AbstractConnectionProvider {
         if (openedSocked != null) {
             openedSocked.close(1000, "");
             if (currentListener != null)
-                currentListener.getCompletable().blockingAwait();
+                currentListener.awaitCloseBlocking();
         }
     }
 
@@ -144,8 +144,8 @@ class OkHttpConnectionProvider extends AbstractConnectionProvider {
             mEmitters.add(emitter);
         }
 
-        private Completable getCompletable(){
-            return mCompletable;
+        private void awaitCloseBlocking(){
+            mCompletable.blockingAwait();
         }
 
         private void launchCloseEvent(){
