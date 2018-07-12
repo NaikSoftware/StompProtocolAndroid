@@ -186,8 +186,12 @@ public class StompClient {
     }
 
     public Completable disconnectCompletable() {
-        mLifecycleDisposable.dispose();
-        mMessagesDisposable.dispose();
+        if (mLifecycleDisposable != null) {
+            mLifecycleDisposable.dispose();
+        }
+        if (mMessagesDisposable != null) {
+            mMessagesDisposable.dispose();
+        }
         return mConnectionProvider.disconnect()
                 .doOnComplete(() -> setConnected(false));
     }
