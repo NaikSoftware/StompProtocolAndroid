@@ -11,8 +11,8 @@ import java.util.Map;
 import java.util.TreeMap;
 
 import io.reactivex.Completable;
-import io.reactivex.CompletableEmitter;
-import io.reactivex.CompletableOnSubscribe;
+import io.reactivex.CompletableObserver;
+import io.reactivex.CompletableSource;
 import okhttp3.Headers;
 import okhttp3.OkHttpClient;
 import okhttp3.Request;
@@ -30,10 +30,10 @@ class OkHttpConnectionProvider extends AbstractConnectionProvider {
     private final String tag = OkHttpConnectionProvider.class.getSimpleName();
 
     @Nullable
-    private WebSocket openedSocked;
+    private WebSocket openSocket;
 
     @Nullable
-    private CompletableWebSocketListener currentListener;
+    private CompletableWebSocketListener socketListener;
 
     OkHttpConnectionProvider(String uri, @Nullable Map<String, String> connectHttpHeaders, OkHttpClient okHttpClient) {
         super();
@@ -44,10 +44,10 @@ class OkHttpConnectionProvider extends AbstractConnectionProvider {
 
     @Override
     public void rawDisconnect() {
-        if (openedSocked != null) {
-            openedSocked.close(1000, "");
-            if (currentListener != null)
-                currentListener.awaitCloseBlocking();
+        if (openSocket != null) {
+            openSocket.close(1000, "");
+            if (socketListener != null)
+                socketListener.awaitCloseBlocking();
         }
     }
 
@@ -58,21 +58,21 @@ class OkHttpConnectionProvider extends AbstractConnectionProvider {
 
         addConnectionHeadersToBuilder(requestBuilder, mConnectHttpHeaders);
 
-        currentListener = new CompletableWebSocketListener();
+        socketListener = new CompletableWebSocketListener();
 
-        openedSocked = mOkHttpClient
-                .newWebSocket(requestBuilder.build(), currentListener);
+        openSocket = mOkHttpClient
+                .newWebSocket(requestBuilder.build(), socketListener);
     }
 
     @Override
     void rawSend(String stompMessage) {
-        openedSocked.send(stompMessage);
+        openSocket.send(stompMessage);
     }
 
     @Nullable
     @Override
     Object getSocket() {
-        return openedSocked;
+        return openSocket;
     }
 
     @NonNull
@@ -91,9 +91,10 @@ class OkHttpConnectionProvider extends AbstractConnectionProvider {
         }
     }
 
-    private class CompletableWebSocketListener extends WebSocketListener implements CompletableOnSubscribe {
-        private List<CompletableEmitter> mEmitters = new ArrayList<>();
-        private Completable mCompletable = Completable.create(this);
+    // Class for a WS Listener that completes after the socket closes
+    private class CompletableWebSocketListener extends WebSocketListener implements CompletableSource {
+        private List<CompletableObserver> mObservers = new ArrayList<>();
+        private Completable mCompletable = Completable.wrap(this);
 
         @Override
         public void onOpen(WebSocket webSocket, @NonNull Response response) {
@@ -120,7 +121,7 @@ class OkHttpConnectionProvider extends AbstractConnectionProvider {
 
         @Override
         public void onClosed(WebSocket webSocket, int code, String reason) {
-            openedSocked = null;
+            openSocket = null;
             emitLifecycleEvent(new LifecycleEvent(LifecycleEvent.Type.CLOSED));
             launchCloseEvent();
         }
@@ -129,7 +130,7 @@ class OkHttpConnectionProvider extends AbstractConnectionProvider {
         public void onFailure(WebSocket webSocket, Throwable t, Response response) {
             // in OkHttp, a Failure is equivalent to a JWS-Error *and* a JWS-Close
             emitLifecycleEvent(new LifecycleEvent(LifecycleEvent.Type.ERROR, new Exception(t)));
-            openedSocked = null;
+            openSocket = null;
             emitLifecycleEvent(new LifecycleEvent(LifecycleEvent.Type.CLOSED));
             launchErrorEvent(t);
         }
@@ -140,8 +141,8 @@ class OkHttpConnectionProvider extends AbstractConnectionProvider {
         }
 
         @Override
-        public void subscribe(CompletableEmitter emitter) {
-            mEmitters.add(emitter);
+        public void subscribe (CompletableObserver observer) {
+            mObservers.add(observer);
         }
 
         private void awaitCloseBlocking(){
@@ -149,16 +150,14 @@ class OkHttpConnectionProvider extends AbstractConnectionProvider {
         }
 
         private void launchCloseEvent(){
-            for (CompletableEmitter emitter : mEmitters) {
-                if(!emitter.isDisposed())
-                    emitter.onComplete();
+            for (CompletableObserver observer : mObservers) {
+                observer.onComplete();
             }
         }
 
         private void launchErrorEvent(Throwable t){
-            for (CompletableEmitter emitter : mEmitters) {
-                if(!emitter.isDisposed())
-                    emitter.onError(t);
+            for (CompletableObserver observer : mObservers) {
+                    observer.onError(t);
             }
         }
     }
