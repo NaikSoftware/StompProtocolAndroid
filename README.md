@@ -71,7 +71,7 @@ Check out the full example server https://github.com/NaikSoftware/stomp-protocol
  
  // ...
  
- mStompClient = Stomp.over(WebSocket.class, "ws://10.0.2.2:8080/example-endpoint/websocket");
+ mStompClient = Stomp.over(Stomp.ConnectionProvider.OKHTTP, "ws://10.0.2.2:8080/example-endpoint/websocket");
  mStompClient.connect();
   
  mStompClient.topic("/topic/greetings").subscribe(topicMessage -> {
