@@ -48,7 +48,12 @@ class WebSocketsConnectionProvider extends AbstractConnectionProvider {
 
     @Override
     public void rawDisconnect() {
-        mWebSocketClient.close();
+        try {
+            mWebSocketClient.closeBlocking();
+        } catch (InterruptedException e) {
+            Log.e(TAG, "Thread interrupted while waiting for Websocket closing: ", e);
+            throw new RuntimeException(e);
+        }
     }
 
     @Override

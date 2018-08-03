@@ -1,6 +1,5 @@
 package ua.naiksoftware.stomp;
 
-import android.nfc.Tag;
 import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
 import android.util.Log;
@@ -27,7 +26,7 @@ class OkHttpConnectionProvider extends AbstractConnectionProvider {
     private final OkHttpClient mOkHttpClient;
 
     @Nullable
-    private WebSocket openedSocked;
+    private WebSocket openSocket;
 
     OkHttpConnectionProvider(String uri, @Nullable Map<String, String> connectHttpHeaders, OkHttpClient okHttpClient) {
         super();
@@ -36,11 +35,10 @@ class OkHttpConnectionProvider extends AbstractConnectionProvider {
         mOkHttpClient = okHttpClient;
     }
 
-    @NonNull
     @Override
     public void rawDisconnect() {
-        if (openedSocked != null) {
-            openedSocked.close(1000, "");
+        if (openSocket != null) {
+            openSocket.close(1000, "");
         }
     }
 
@@ -51,7 +49,7 @@ class OkHttpConnectionProvider extends AbstractConnectionProvider {
 
         addConnectionHeadersToBuilder(requestBuilder, mConnectHttpHeaders);
 
-        openedSocked = mOkHttpClient.newWebSocket(requestBuilder.build(),
+        openSocket = mOkHttpClient.newWebSocket(requestBuilder.build(),
                 new WebSocketListener() {
                     @Override
                     public void onOpen(WebSocket webSocket, @NonNull Response response) {
@@ -78,17 +76,15 @@ class OkHttpConnectionProvider extends AbstractConnectionProvider {
 
                     @Override
                     public void onClosed(WebSocket webSocket, int code, String reason) {
-                        if (webSocket != openedSocked) return;
-                        openedSocked = null;
+                        openSocket = null;
                         emitLifecycleEvent(new LifecycleEvent(LifecycleEvent.Type.CLOSED));
                     }
 
                     @Override
                     public void onFailure(WebSocket webSocket, Throwable t, Response response) {
-                        if (webSocket != openedSocked) return;
                         // in OkHttp, a Failure is equivalent to a JWS-Error *and* a JWS-Close
                         emitLifecycleEvent(new LifecycleEvent(LifecycleEvent.Type.ERROR, new Exception(t)));
-                        openedSocked = null;
+                        openSocket = null;
                         emitLifecycleEvent(new LifecycleEvent(LifecycleEvent.Type.CLOSED));
                     }
 
@@ -103,13 +99,13 @@ class OkHttpConnectionProvider extends AbstractConnectionProvider {
 
     @Override
     void rawSend(String stompMessage) {
-        openedSocked.send(stompMessage);
+        openSocket.send(stompMessage);
     }
 
     @Nullable
     @Override
     Object getSocket() {
-        return openedSocked;
+        return openSocket;
     }
 
     @NonNull
