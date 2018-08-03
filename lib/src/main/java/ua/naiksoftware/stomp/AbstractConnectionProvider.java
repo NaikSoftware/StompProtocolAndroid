@@ -31,7 +31,6 @@ abstract class AbstractConnectionProvider implements ConnectionProvider {
     @NonNull
     @Override
     public Observable<String> messages() {
-        Log.d(TAG, "messages()");
         return mMessagesStream.startWith(initSocket().toObservable());
     }
 
@@ -52,7 +51,6 @@ abstract class AbstractConnectionProvider implements ConnectionProvider {
     }
 
     private Completable initSocket() {
-        Log.d(TAG, "innitSocket");
         return Completable
                 .fromAction(this::createWebSocketConnection);
     }

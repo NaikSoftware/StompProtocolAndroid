@@ -113,7 +113,6 @@ public class StompClient {
                 .subscribe(lifecycleEvent -> {
                     switch (lifecycleEvent.getType()) {
                         case OPENED:
-                            Log.d(TAG, "Socket connected, send connect command to stomp");
                             List<StompHeader> headers = new ArrayList<>();
                             headers.add(new StompHeader(StompHeader.VERSION, SUPPORTED_VERSIONS));
                             headers.add(new StompHeader(StompHeader.HEART_BEAT, "0," + heartbeat));
@@ -136,7 +135,6 @@ public class StompClient {
                     }
                 });
 
-        Log.d(TAG, "Subscribe to messages for create connection");
         isConnecting = true;
         mMessagesDisposable = mConnectionProvider.messages()
                 .map(StompMessage::from)
