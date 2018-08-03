@@ -1,5 +1,6 @@
 package ua.naiksoftware.stomp;
 
+import android.nfc.Tag;
 import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
 import android.util.Log;
@@ -18,11 +19,12 @@ import okio.ByteString;
 
 class OkHttpConnectionProvider extends AbstractConnectionProvider {
 
+    public static final String TAG = "OkHttpConnProvider";
+
     private final String mUri;
     @NonNull
     private final Map<String, String> mConnectHttpHeaders;
     private final OkHttpClient mOkHttpClient;
-    private final String tag = OkHttpConnectionProvider.class.getSimpleName();
 
     @Nullable
     private WebSocket openedSocked;
@@ -44,6 +46,7 @@ class OkHttpConnectionProvider extends AbstractConnectionProvider {
 
     @Override
     void createWebSocketConnection() {
+        Log.d(TAG, "createWebSocketConnection");
         Request.Builder requestBuilder = new Request.Builder()
                 .url(mUri);
 
@@ -53,6 +56,7 @@ class OkHttpConnectionProvider extends AbstractConnectionProvider {
                 new WebSocketListener() {
                     @Override
                     public void onOpen(WebSocket webSocket, @NonNull Response response) {
+                        Log.d(TAG, "onOpen");
                         LifecycleEvent openEvent = new LifecycleEvent(LifecycleEvent.Type.OPENED);
 
                         TreeMap<String, String> headersAsMap = headersAsMap(response);
@@ -64,7 +68,7 @@ class OkHttpConnectionProvider extends AbstractConnectionProvider {
                     @Override
                     public void onMessage(WebSocket webSocket, String text) {
                         if (text.equals("\n"))
-                            Log.d(tag, "RECEIVED HEARTBEAT");
+                            Log.d(TAG, "RECEIVED HEARTBEAT");
                         else
                             emitMessage(text);
                     }
@@ -76,6 +80,7 @@ class OkHttpConnectionProvider extends AbstractConnectionProvider {
 
                     @Override
                     public void onClosed(WebSocket webSocket, int code, String reason) {
+                        Log.d(TAG, "onClosed (nullify socket)");
                         openedSocked = null;
                         emitLifecycleEvent(new LifecycleEvent(LifecycleEvent.Type.CLOSED));
                     }
@@ -83,6 +88,7 @@ class OkHttpConnectionProvider extends AbstractConnectionProvider {
                     @Override
                     public void onFailure(WebSocket webSocket, Throwable t, Response response) {
                         // in OkHttp, a Failure is equivalent to a JWS-Error *and* a JWS-Close
+                        Log.d(TAG, "onFailure (nullify socket)");
                         emitLifecycleEvent(new LifecycleEvent(LifecycleEvent.Type.ERROR, new Exception(t)));
                         openedSocked = null;
                         emitLifecycleEvent(new LifecycleEvent(LifecycleEvent.Type.CLOSED));
@@ -90,11 +96,13 @@ class OkHttpConnectionProvider extends AbstractConnectionProvider {
 
                     @Override
                     public void onClosing(final WebSocket webSocket, final int code, final String reason) {
+                        Log.d(TAG, "onClosing");
                         webSocket.close(code, reason);
                     }
                 }
 
         );
+        Log.d(TAG, "Socket inited " + openedSocked);
     }
 
     @Override

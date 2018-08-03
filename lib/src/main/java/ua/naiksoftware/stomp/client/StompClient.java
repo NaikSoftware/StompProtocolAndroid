@@ -100,13 +100,20 @@ public class StompClient {
      * @param _headers HTTP headers to send in the INITIAL REQUEST, i.e. during the protocol upgrade
      */
     public void connect(@Nullable List<StompHeader> _headers) {
+
+        Log.d(TAG, "Connect");
+
         mHeaders = _headers;
 
-        if (mConnected) return;
+        if (mConnected) {
+            Log.d(TAG, "Already connected, ignore");
+            return;
+        }
         mLifecycleDisposable = mConnectionProvider.lifecycle()
                 .subscribe(lifecycleEvent -> {
                     switch (lifecycleEvent.getType()) {
                         case OPENED:
+                            Log.d(TAG, "Socket connected, send connect command to stomp");
                             List<StompHeader> headers = new ArrayList<>();
                             headers.add(new StompHeader(StompHeader.VERSION, SUPPORTED_VERSIONS));
                             headers.add(new StompHeader(StompHeader.HEART_BEAT, "0," + heartbeat));
@@ -116,17 +123,20 @@ public class StompClient {
                             break;
 
                         case CLOSED:
+                            Log.d(TAG, "Socket closed");
                             setConnected(false);
                             isConnecting = false;
                             break;
 
                         case ERROR:
+                            Log.d(TAG, "Socket closed with error");
                             setConnected(false);
                             isConnecting = false;
                             break;
                     }
                 });
 
+        Log.d(TAG, "Subscribe to messages for create connection");
         isConnecting = true;
         mMessagesDisposable = mConnectionProvider.messages()
                 .map(StompMessage::from)
