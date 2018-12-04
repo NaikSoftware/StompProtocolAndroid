@@ -46,7 +46,7 @@ class WebSocketConfig extends AbstractWebSocketMessageBrokerConfigurer {
 
 **SocketController.groovy**
 ``` groovy
-@Log4j
+@Slf4j
 @RestController
 class SocketController {
 

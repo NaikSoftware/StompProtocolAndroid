@@ -2,9 +2,10 @@
 <project version="4">
   <component name="ProjectModuleManager">
     <modules>
-      <module fileurl="file://$PROJECT_DIR$/StompProtocolAndroid.iml" filepath="$PROJECT_DIR$/StompProtocolAndroid.iml" />
+      <module fileurl="file://$PROJECT_DIR$/.idea/StompProtocolAndroid.iml" filepath="$PROJECT_DIR$/.idea/StompProtocolAndroid.iml" />
       <module fileurl="file://$PROJECT_DIR$/example-client/example-client.iml" filepath="$PROJECT_DIR$/example-client/example-client.iml" />
       <module fileurl="file://$PROJECT_DIR$/lib/lib.iml" filepath="$PROJECT_DIR$/lib/lib.iml" />
+      <module fileurl="file://$PROJECT_DIR$/test-server/test-server.iml" filepath="$PROJECT_DIR$/test-server/test-server.iml" />
     </modules>
   </component>
 </project>
