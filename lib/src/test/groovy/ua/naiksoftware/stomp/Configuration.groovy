@@ -1,25 +1,37 @@
 package ua.naiksoftware.stomp
 
+import com.andrewreitz.spock.android.AndroidSpecification
+import groovy.util.logging.Slf4j
 import org.testcontainers.containers.BindMode
 import org.testcontainers.containers.GenericContainer
+import org.testcontainers.containers.output.OutputFrame
 import org.testcontainers.containers.wait.strategy.Wait
 import spock.lang.Shared
 import spock.lang.Specification
 
-class Configuration extends Specification implements ApplicationContextInitializer<ConfigurableApplicationContext> {
+import java.util.function.Consumer
+
+class Configuration extends AndroidSpecification {
 
     @Shared
     static GenericContainer testServer = setupServer()
 
-    GenericContainer setupServer() {
+    static GenericContainer setupServer() {
 
-        new ProcessBuilder('./gradlew bootJar')
+        def projectRoot = new File('../')
+        new ProcessBuilder(['./gradlew', 'test-server:bootJar'])
+                .directory(projectRoot)
                 .start().waitForProcessOutput(System.out as Appendable, System.err as Appendable)
 
-        return new GenericContainer('openjdk:8-jre-alpine')
-                .withClasspathResourceMapping('./build/artifacts/test-server-1.0.jar', '/app.jar', BindMode.READ_ONLY)
+        def testServerPath = new File(projectRoot.getAbsoluteFile().getParentFile().getParent(),
+                'test-server/build/artifacts/test-server-1.0.jar').path
+        testServer = new GenericContainer('openjdk:8-jre-alpine')
+                .withFileSystemBind(testServerPath, '/app.jar', BindMode.READ_ONLY)
                 .withCommand('java -jar /app.jar')
-                .waitingFor(Wait.forHttp('/health'))
+                .withLogConsumer({ frame -> println frame.utf8String })
+//                .waitingFor(Wait.forHttp('/health'))
                 .withExposedPorts(80)
+        testServer.start()
+        return testServer
     }
 }

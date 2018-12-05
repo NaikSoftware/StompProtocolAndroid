@@ -30,6 +30,7 @@ repositories {
 dependencies {
     compile 'org.springframework.boot:spring-boot-starter-websocket'
     compile 'org.springframework.boot:spring-boot-starter-web'
+    compile 'ch.qos.logback:logback-classic:1.2.3'
     compile 'org.codehaus.groovy:groovy-all:2.4.15'
 }
 
@@ -40,6 +41,6 @@ dependencyManagement {
 }
 
 bootJar {
-    destinationDir = new File("./build/artifacts")
+    destinationDir = project.file("build/artifacts")
 }
 
