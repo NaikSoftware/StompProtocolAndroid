@@ -18,8 +18,8 @@ class ConnectionTests extends Configuration {
     def "connection must be opened"() {
         given:
         def client = Stomp.over(Stomp.ConnectionProvider.OKHTTP,
-                'http://' + Configuration.testServer.getContainerIpAddress()
-                        + ':' + Configuration.testServer.getMappedPort(80) + '/websocket')
+                'ws://' + Configuration.testServer.getContainerIpAddress()
+                        + ':' + Configuration.testServer.getMappedPort(80) + '/example-endpoint/websocket')
         client.connect()
         def testSubscriber = new TestSubscriber<LifecycleEvent>()
 
@@ -31,10 +31,10 @@ class ConnectionTests extends Configuration {
             if (event.exception) {
                 event.exception.printStackTrace()
             }
-            assert event.type == LifecycleEvent.Type.OPENED
+            return event.type == LifecycleEvent.Type.OPENED
         })
 
-//        cleanup:
-//        client.disconnect()
+        cleanup:
+        client.disconnect()
     }
 }
