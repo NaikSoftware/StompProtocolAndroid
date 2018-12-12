@@ -191,6 +191,12 @@ public class StompClient {
 
     public void disconnect() {
         disconnectCompletable().subscribe(() -> {}, e -> Log.e(tag, "Disconnect error", e));
+        if(mStreamMap != null && !mStreamMap.isEmpty()){
+            mStreamMap.clear();
+        }
+        if(mTopics != null && !mTopics.isEmpty()){
+            mTopics.clear();
+        }
     }
 
     public Completable disconnectCompletable() {
