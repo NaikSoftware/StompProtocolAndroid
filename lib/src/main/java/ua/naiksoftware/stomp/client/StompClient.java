@@ -28,7 +28,7 @@ public class StompClient {
 
     private static final String TAG = StompClient.class.getSimpleName();
 
-    public static final String SUPPORTED_VERSIONS = "1.1,1.0";
+    public static final String SUPPORTED_VERSIONS = "1.1,1.2";
     public static final String DEFAULT_ACK = "auto";
 
     private final String tag = StompClient.class.getSimpleName();
@@ -45,7 +45,9 @@ public class StompClient {
     private Disposable mLifecycleDisposable;
     private Disposable mMessagesDisposable;
     private List<StompHeader> mHeaders;
-    private int heartbeat;
+
+    private int serverHeartbeat = 0;
+    private int clientHeartbeat = 0;
 
     public StompClient(ConnectionProvider connectionProvider) {
         mConnectionProvider = connectionProvider;
@@ -82,9 +84,22 @@ public class StompClient {
      *
      * @param ms heartbeat time in milliseconds
      */
-    public void setHeartbeat(int ms) {
-        heartbeat = ms;
-        mConnectionProvider.setHeartbeat(ms).subscribe();
+    public StompClient withServerHeartbeat(int ms) {
+        mConnectionProvider.setServerHeartbeat(ms);
+        this.serverHeartbeat = ms;
+        return this;
+    }
+    /**
+     * Sets the heartbeat interval that client propose to send.
+     * <p>
+     * Not very useful yet, because we don't have any heartbeat logic on our side.
+     *
+     * @param ms heartbeat time in milliseconds
+     */
+    public StompClient withClientHeartbeat(int ms) {
+        mConnectionProvider.setClientHeartbeat(ms);
+        this.clientHeartbeat = ms;
+        return this;
     }
 
     /**
@@ -115,7 +130,7 @@ public class StompClient {
                         case OPENED:
                             List<StompHeader> headers = new ArrayList<>();
                             headers.add(new StompHeader(StompHeader.VERSION, SUPPORTED_VERSIONS));
-                            headers.add(new StompHeader(StompHeader.HEART_BEAT, "0," + heartbeat));
+                            headers.add(new StompHeader(StompHeader.HEART_BEAT, clientHeartbeat + "," + serverHeartbeat));
                             if (_headers != null) headers.addAll(_headers);
                             mConnectionProvider.send(new StompMessage(StompCommand.CONNECT, headers, null).compile(legacyWhitespace))
                                     .subscribe();
@@ -132,6 +147,11 @@ public class StompClient {
                             setConnected(false);
                             isConnecting = false;
                             break;
+
+                        case FAILED_SERVER_HEARTBEAT:
+                            Log.d(TAG, "Server failed to send heart-beat in time.");
+                            break;
+
                     }
                 });
 
@@ -173,10 +193,11 @@ public class StompClient {
     }
 
     public Completable send(@NonNull StompMessage stompMessage) {
-        Completable completable = mConnectionProvider.send(stompMessage.compile(legacyWhitespace));
+        Completable completable = mConnectionProvider.send(stompMessage.compile(legacyWhitespace))
+                .doOnError(t -> t.printStackTrace());
         CompletableSource connectionComplete = mConnectionStream
                 .filter(isConnected -> isConnected)
-                .firstOrError().toCompletable();
+                .firstOrError().ignoreElement();
         return completable
                 .startWith(connectionComplete);
     }

@@ -14,14 +14,17 @@ import com.google.gson.GsonBuilder;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Date;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 
 import io.reactivex.CompletableTransformer;
 import io.reactivex.android.schedulers.AndroidSchedulers;
 import io.reactivex.disposables.Disposable;
 import io.reactivex.schedulers.Schedulers;
 import ua.naiksoftware.stomp.Stomp;
+import ua.naiksoftware.stomp.StompHeader;
 import ua.naiksoftware.stomp.client.StompClient;
 
 import static ua.naiksoftware.stompclientexample.RestClient.ANDROID_EMULATOR_LOCALHOST;
@@ -53,9 +56,20 @@ public class MainActivity extends AppCompatActivity {
         mStompClient.disconnect();
     }
 
+    public static final String LOGIN = "login";
+
+    public static final String PASSCODE = "passcode";
+
     public void connectStomp(View view) {
+
+        List<StompHeader> headers = new ArrayList<>();
+        headers.add(new StompHeader(LOGIN, "guest"));
+        headers.add(new StompHeader(PASSCODE, "guest"));
+
         mStompClient = Stomp.over(Stomp.ConnectionProvider.JWS, "ws://" + ANDROID_EMULATOR_LOCALHOST
                 + ":" + RestClient.SERVER_PORT + "/example-endpoint/websocket");
+
+        mStompClient.withClientHeartbeat(30000).withServerHeartbeat(30000);
 
         mStompClient.lifecycle()
                 .subscribeOn(Schedulers.io())
@@ -71,6 +85,10 @@ public class MainActivity extends AppCompatActivity {
                             break;
                         case CLOSED:
                             toast("Stomp connection closed");
+                            break;
+                        case FAILED_SERVER_HEARTBEAT:
+                            toast("Stomp failed server heartbeat");
+                            break;
                     }
                 });
 
@@ -83,7 +101,7 @@ public class MainActivity extends AppCompatActivity {
                     addItem(mGson.fromJson(topicMessage.getPayload(), EchoModel.class));
                 });
 
-        mStompClient.connect();
+        mStompClient.connect(headers);
     }
 
     public void sendEchoViaStomp(View v) {

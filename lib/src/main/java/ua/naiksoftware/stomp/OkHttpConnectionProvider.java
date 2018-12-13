@@ -63,10 +63,8 @@ class OkHttpConnectionProvider extends AbstractConnectionProvider {
 
                     @Override
                     public void onMessage(WebSocket webSocket, String text) {
-                        if (text.equals("\n"))
-                            Log.d(TAG, "RECEIVED HEARTBEAT");
-                        else
-                            emitMessage(text);
+                        Log.d(TAG, "onMessage: " + text);
+                        emitMessage(text);
                     }
 
                     @Override
