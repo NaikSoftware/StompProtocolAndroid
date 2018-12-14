@@ -93,6 +93,9 @@ class WebSocketsConnectionProvider extends AbstractConnectionProvider {
                 Log.d(TAG, "onClose: code=" + code + " reason=" + reason + " remote=" + remote);
                 haveConnection = false;
                 emitLifecycleEvent(new LifecycleEvent(LifecycleEvent.Type.CLOSED));
+
+                Log.d(TAG, "Disconnect after close.");
+                disconnect();
             }
 
             @Override
