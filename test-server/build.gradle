@@ -4,7 +4,7 @@ version '1.0'
 buildscript {
 
     ext {
-        springBootVersion = '2.0.6.RELEASE'
+        springBootVersion = '2.1.1.RELEASE'
         springCloudVersion = 'Finchley.SR1'
     }
     
