@@ -63,8 +63,15 @@ abstract class AbstractConnectionProvider implements ConnectionProvider {
         if(clientSendheartBeatTask != null){
             clientSendheartBeatTask.dispose();
         }
-        scheduler.shutdown();
-        Log.d(TAG, "Shutting down heart-beat scheduler...");
+
+        if(serverCheckHeartBeatTask != null){
+            serverCheckHeartBeatTask.dispose();
+        }
+
+        lastServerHeartBeat = 0;
+
+        // TODO shutdown Schedulers.io() is not a good idea
+//        scheduler.shutdown();
 
         return Completable
                 .fromAction(this::rawDisconnect);
@@ -130,6 +137,7 @@ abstract class AbstractConnectionProvider implements ConnectionProvider {
         final StompMessage sm = StompMessage.from(stompMessage);
 
         if(StompCommand.CONNECTED.equals(sm.getStompCommand())){
+            Log.d(TAG, "<<< CONNECTED");
             heartBeatHandshake(sm.findHeader(StompHeader.HEART_BEAT));
         }else if(StompCommand.SEND.equals(sm.getStompCommand())){
             abortClientHeartBeatSend();
@@ -137,6 +145,7 @@ abstract class AbstractConnectionProvider implements ConnectionProvider {
             //a MESSAGE works as an hear-beat too.
             abortServerHeartBeatCheck();
         }
+
         if (stompMessage.equals("\n")) {
             Log.d(TAG, "<<< PONG");
             abortServerHeartBeatCheck();
@@ -182,15 +191,19 @@ abstract class AbstractConnectionProvider implements ConnectionProvider {
                 Log.d(TAG, "Client will listen to server heart-beat every " + serverHeartbeat + " ms");
                 //client WANT to listen to server heart-beat
                 scheduleServerHeartBeatCheck();
+
+                // initialize the server heartbeat
+                lastServerHeartBeat = System.currentTimeMillis();
             }
         }
     }
     protected void scheduleServerHeartBeatCheck(){
         if(serverHeartbeat > 0 && scheduler != null) {
-            Log.d(TAG, "Scheduling server heart-beat to be checked in " + serverHeartbeat +" ms");
+            final long now = System.currentTimeMillis();
+            Log.d(TAG, "Scheduling server heart-beat to be checked in " + serverHeartbeat +" ms and now is '" + now + "'");
             //add some slack on the check
             serverCheckHeartBeatTask = scheduler.scheduleDirect( () ->
-                    checkServerHeartBeat() , serverHeartbeat + 1000 , TimeUnit.MILLISECONDS);
+                    checkServerHeartBeat() , serverHeartbeat, TimeUnit.MILLISECONDS);
         }
     }
     private void checkServerHeartBeat() {

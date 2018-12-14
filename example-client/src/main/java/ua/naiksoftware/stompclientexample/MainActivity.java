@@ -14,13 +14,12 @@ import com.google.gson.GsonBuilder;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Date;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
-import java.util.Map;
 
 import io.reactivex.CompletableTransformer;
 import io.reactivex.android.schedulers.AndroidSchedulers;
+import io.reactivex.disposables.CompositeDisposable;
 import io.reactivex.disposables.Disposable;
 import io.reactivex.schedulers.Schedulers;
 import ua.naiksoftware.stomp.Stomp;
@@ -41,6 +40,8 @@ public class MainActivity extends AppCompatActivity {
     private RecyclerView mRecyclerView;
     private Gson mGson = new GsonBuilder().create();
 
+    private CompositeDisposable compositeDisposable;
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -54,6 +55,12 @@ public class MainActivity extends AppCompatActivity {
 
     public void disconnectStomp(View view) {
         mStompClient.disconnect();
+
+        if (compositeDisposable != null) {
+            compositeDisposable.dispose();
+
+            compositeDisposable = null;
+        }
     }
 
     public static final String LOGIN = "login";
@@ -71,7 +78,9 @@ public class MainActivity extends AppCompatActivity {
 
         mStompClient.withClientHeartbeat(30000).withServerHeartbeat(30000);
 
-        mStompClient.lifecycle()
+        compositeDisposable = new CompositeDisposable();
+
+        Disposable dispLifecycle = mStompClient.lifecycle()
                 .subscribeOn(Schedulers.io())
                 .observeOn(AndroidSchedulers.mainThread())
                 .subscribe(lifecycleEvent -> {
@@ -92,14 +101,18 @@ public class MainActivity extends AppCompatActivity {
                     }
                 });
 
+        compositeDisposable.add(dispLifecycle);
+
         // Receive greetings
-        mStompClient.topic("/topic/greetings")
+        Disposable dispTopic = mStompClient.topic("/topic/greetings")
                 .subscribeOn(Schedulers.io())
                 .observeOn(AndroidSchedulers.mainThread())
                 .subscribe(topicMessage -> {
                     Log.d(TAG, "Received " + topicMessage.getPayload());
                     addItem(mGson.fromJson(topicMessage.getPayload(), EchoModel.class));
                 });
+
+        compositeDisposable.add(dispTopic);
 
         mStompClient.connect(headers);
     }
@@ -148,6 +161,12 @@ public class MainActivity extends AppCompatActivity {
     @Override
     protected void onDestroy() {
         mStompClient.disconnect();
+
+        if (compositeDisposable != null) {
+            compositeDisposable.dispose();
+            compositeDisposable = null;
+        }
+
         if (mRestPingDisposable != null) mRestPingDisposable.dispose();
         super.onDestroy();
     }
