@@ -32,5 +32,18 @@ public interface ConnectionProvider {
      */
     Completable disconnect();
 
-    Completable setHeartbeat(int ms);
+    /**
+     * Set the server heart-beat
+     *
+     * @param ms milliseconds
+     */
+    void setServerHeartbeat(int ms);
+
+    /**
+     * Set the client heart-beat
+     *
+     * @param ms milliseconds
+     */
+    void setClientHeartbeat(int ms);
+
 }

@@ -4,9 +4,16 @@ import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
 import android.util.Log;
 
+import java.util.concurrent.TimeUnit;
+
 import io.reactivex.Completable;
 import io.reactivex.Observable;
+import io.reactivex.Scheduler;
+import io.reactivex.disposables.Disposable;
+import io.reactivex.schedulers.Schedulers;
 import io.reactivex.subjects.PublishSubject;
+import ua.naiksoftware.stomp.client.StompCommand;
+import ua.naiksoftware.stomp.client.StompMessage;
 
 /**
  * Created by forresthopkinsa on 8/8/2017.
@@ -17,6 +24,16 @@ import io.reactivex.subjects.PublishSubject;
 abstract class AbstractConnectionProvider implements ConnectionProvider {
 
     private static final String TAG = AbstractConnectionProvider.class.getSimpleName();
+
+    private transient Disposable clientSendHeartBeatTask;
+    private transient Disposable serverCheckHeartBeatTask;
+    private Scheduler scheduler;
+
+    private int serverHeartbeat = 0;
+    private int clientHeartbeat = 0;
+
+    private transient long lastServerHeartBeat = 0;
+
 
     @NonNull
     private final PublishSubject<LifecycleEvent> mLifecycleStream;
@@ -46,6 +63,11 @@ abstract class AbstractConnectionProvider implements ConnectionProvider {
 
     @Override
     public Completable disconnect() {
+        if (clientSendHeartBeatTask != null) {
+            clientSendHeartBeatTask.dispose();
+        }
+        scheduler.shutdown();
+        Log.d(TAG, "Shutting down heart-beat scheduler...");
         return Completable
                 .fromAction(this::rawDisconnect);
     }
@@ -53,11 +75,6 @@ abstract class AbstractConnectionProvider implements ConnectionProvider {
     private Completable initSocket() {
         return Completable
                 .fromAction(this::createWebSocketConnection);
-    }
-
-    // Doesn't do anything at all, only here as a stub
-    public Completable setHeartbeat(int ms) {
-        return Completable.complete();
     }
 
     /**
@@ -111,13 +128,152 @@ abstract class AbstractConnectionProvider implements ConnectionProvider {
     }
 
     void emitMessage(String stompMessage) {
-        Log.d(TAG, "Emit STOMP message: " + stompMessage);
-        mMessagesStream.onNext(stompMessage);
+        //TODO: Why we don't publish a StompMessage, instead of String? will this connection provider work with other protocol?
+        final StompMessage sm = StompMessage.from(stompMessage);
+        if (StompCommand.CONNECTED.equals(sm.getStompCommand())) {
+            heartBeatHandshake(sm.findHeader(StompHeader.HEART_BEAT));
+        } else if (StompCommand.SEND.equals(sm.getStompCommand())) {
+            abortClientHeartBeatSend();
+        } else if (StompCommand.MESSAGE.equals(sm.getStompCommand())) {
+            //a MESSAGE works as an hear-beat too.
+            abortServerHeartBeatCheck();
+        }
+
+        if (stompMessage.equals("\n")) {
+            Log.d(TAG, "<<< PONG");
+            abortServerHeartBeatCheck();
+        } else {
+            Log.d(TAG, "Receive STOMP message: " + stompMessage);
+            mMessagesStream.onNext(stompMessage);
+        }
     }
 
     @NonNull
     @Override
     public Observable<LifecycleEvent> lifecycle() {
         return mLifecycleStream;
+    }
+
+    /**
+     * Analise heart-beat sent from server (if any), to adjust the frequency.
+     * Startup the heart-beat logic.
+     *
+     * @param heartBeatHeader
+     */
+    private void heartBeatHandshake(final String heartBeatHeader) {
+        if (heartBeatHeader != null) {
+            // The heart-beat header is OPTIONAL
+            final String[] heartbeats = heartBeatHeader.split(",");
+            if (clientHeartbeat > 0) {
+                //there will be heart-beats every MAX(<cx>,<sy>) milliseconds
+                clientHeartbeat = Math.max(clientHeartbeat, Integer.parseInt(heartbeats[1]));
+            }
+            if (serverHeartbeat > 0) {
+                //there will be heart-beats every MAX(<cx>,<sy>) milliseconds
+                serverHeartbeat = Math.max(serverHeartbeat, Integer.parseInt(heartbeats[0]));
+            }
+        }
+        if (clientHeartbeat > 0 || serverHeartbeat > 0) {
+            scheduler = Schedulers.io();
+
+            if (clientHeartbeat > 0) {
+                //client MUST/WANT send heart-beat
+                Log.d(TAG, "Client will send heart-beat every " + clientHeartbeat + " ms");
+                scheduleClientHeartBeat();
+            }
+            if (serverHeartbeat > 0) {
+                Log.d(TAG, "Client will listen to server heart-beat every " + serverHeartbeat + " ms");
+                //client WANT to listen to server heart-beat
+                scheduleServerHeartBeatCheck();
+            }
+        }
+    }
+
+    protected void scheduleServerHeartBeatCheck() {
+        if (serverHeartbeat > 0 && scheduler != null) {
+            Log.d(TAG, "Scheduling server heart-beat to be checked in " + serverHeartbeat + " ms");
+            //add some slack on the check
+            serverCheckHeartBeatTask = scheduler.scheduleDirect(() ->
+                    checkServerHeartBeat(), serverHeartbeat, TimeUnit.MILLISECONDS);
+        }
+    }
+
+    private void checkServerHeartBeat() {
+        if (serverHeartbeat > 0) {
+            final long now = System.currentTimeMillis();
+            //use a forgiving boundary as some heart beats can be delayed or lost.
+            final long boundary = now - (3 * serverHeartbeat);
+            //we need to check because the task could failed to abort
+            if (lastServerHeartBeat < boundary) {
+                Log.d(TAG, "It's a sad day ;( Server didn't send heart-beat on time. Last received at '" + lastServerHeartBeat + "' and now is '" + now + "'");
+                final LifecycleEvent failedServerHeartBeat = new LifecycleEvent(LifecycleEvent.Type.FAILED_SERVER_HEARTBEAT);
+                emitLifecycleEvent(failedServerHeartBeat);
+            } else {
+                Log.d(TAG, "We were checking and server sent heart-beat on time. So well-behaved :)");
+                lastServerHeartBeat = System.currentTimeMillis();
+            }
+        }
+    }
+
+    /**
+     * Used to abort the server heart-beat check.
+     */
+    private void abortServerHeartBeatCheck() {
+        lastServerHeartBeat = System.currentTimeMillis();
+        Log.d(TAG, "Aborted last check because server sent heart-beat on time ('" + lastServerHeartBeat + "'). So well-behaved :)");
+        if (serverCheckHeartBeatTask != null) {
+            serverCheckHeartBeatTask.dispose();
+        }
+        scheduleServerHeartBeatCheck();
+    }
+
+    /**
+     * Schedule a client heart-beat if clientHeartbeat > 0.
+     */
+    public void scheduleClientHeartBeat() {
+        if (clientHeartbeat > 0 && scheduler != null) {
+            Log.d(TAG, "Scheduling client heart-beat to be sent in " + clientHeartbeat + " ms");
+            clientSendHeartBeatTask = scheduler.scheduleDirect(() ->
+                    sendClientHeartBeat(), clientHeartbeat, TimeUnit.MILLISECONDS);
+        }
+    }
+
+    /**
+     * Send the raw heart-beat to the server.
+     */
+    private void sendClientHeartBeat() {
+        this.rawSend("\r\n");
+        Log.d(TAG, "PING >>>");
+        //schedule next client heart beat
+        this.scheduleClientHeartBeat();
+    }
+
+    /**
+     * Used when we have a scheduled heart-beat and we send a new message to the server.
+     * The new message will work as an heart-beat so we can abort current one and schedule another
+     */
+    private void abortClientHeartBeatSend() {
+        if (clientSendHeartBeatTask != null) {
+            clientSendHeartBeatTask.dispose();
+        }
+        scheduleClientHeartBeat();
+    }
+
+    /**
+     * Set the server heart-beat
+     *
+     * @param ms milliseconds
+     */
+    public void setServerHeartbeat(int ms) {
+        this.serverHeartbeat = ms;
+    }
+
+    /**
+     * Set the client heart-beat
+     *
+     * @param ms milliseconds
+     */
+    public void setClientHeartbeat(int ms) {
+        this.clientHeartbeat = ms;
     }
 }

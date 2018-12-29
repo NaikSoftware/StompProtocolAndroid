@@ -9,7 +9,7 @@ import java.util.TreeMap;
 public class LifecycleEvent {
 
     public enum Type {
-        OPENED, CLOSED, ERROR
+        OPENED, CLOSED, ERROR, FAILED_SERVER_HEARTBEAT;
     }
 
     private final Type mType;
