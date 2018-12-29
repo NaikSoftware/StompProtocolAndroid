@@ -1,3 +1,22 @@
+buildscript {
+    repositories {
+        jcenter()
+        maven {
+            url "https://maven.google.com"
+        }
+        google()
+    }
+    dependencies {
+        classpath 'com.android.tools.build:gradle:3.2.1'
+        classpath 'com.github.dcendents:android-maven-gradle-plugin:1.5'
+    }
+}
+
+repositories {
+    jcenter()
+    maven { url "https://jitpack.io" }
+    google()
+}
 
 apply plugin: 'com.android.application'
 
@@ -35,8 +54,8 @@ dependencies {
     implementation 'io.reactivex.rxjava2:rxjava:2.1.15'
     implementation 'io.reactivex.rxjava2:rxandroid:2.0.2'
 
-    implementation 'com.squareup.retrofit2:converter-gson:2.3.0'
-    implementation 'com.squareup.retrofit2:adapter-rxjava2:2.3.0'
-    implementation 'com.squareup.retrofit2:retrofit:2.3.0'
+    implementation 'com.squareup.retrofit2:converter-gson:2.4.0'
+    implementation 'com.squareup.retrofit2:adapter-rxjava2:2.4.0'
+    implementation 'com.squareup.retrofit2:retrofit:2.4.0'
     implementation project(':lib')
 }
