@@ -19,9 +19,11 @@ import java.util.Locale;
 
 import io.reactivex.CompletableTransformer;
 import io.reactivex.android.schedulers.AndroidSchedulers;
+import io.reactivex.disposables.CompositeDisposable;
 import io.reactivex.disposables.Disposable;
 import io.reactivex.schedulers.Schedulers;
 import ua.naiksoftware.stomp.Stomp;
+import ua.naiksoftware.stomp.StompHeader;
 import ua.naiksoftware.stomp.client.StompClient;
 
 import static ua.naiksoftware.stompclientexample.RestClient.ANDROID_EMULATOR_LOCALHOST;
@@ -38,6 +40,8 @@ public class MainActivity extends AppCompatActivity {
     private RecyclerView mRecyclerView;
     private Gson mGson = new GsonBuilder().create();
 
+    private CompositeDisposable compositeDisposable;
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -51,13 +55,32 @@ public class MainActivity extends AppCompatActivity {
 
     public void disconnectStomp(View view) {
         mStompClient.disconnect();
+
+        if (compositeDisposable != null) {
+            compositeDisposable.dispose();
+
+            compositeDisposable = null;
+        }
     }
 
+    public static final String LOGIN = "login";
+
+    public static final String PASSCODE = "passcode";
+
     public void connectStomp(View view) {
+
+        List<StompHeader> headers = new ArrayList<>();
+        headers.add(new StompHeader(LOGIN, "guest"));
+        headers.add(new StompHeader(PASSCODE, "guest"));
+
         mStompClient = Stomp.over(Stomp.ConnectionProvider.JWS, "ws://" + ANDROID_EMULATOR_LOCALHOST
                 + ":" + RestClient.SERVER_PORT + "/example-endpoint/websocket");
 
-        mStompClient.lifecycle()
+        mStompClient.withClientHeartbeat(30000).withServerHeartbeat(30000);
+
+        compositeDisposable = new CompositeDisposable();
+
+        Disposable dispLifecycle = mStompClient.lifecycle()
                 .subscribeOn(Schedulers.io())
                 .observeOn(AndroidSchedulers.mainThread())
                 .subscribe(lifecycleEvent -> {
@@ -71,11 +94,17 @@ public class MainActivity extends AppCompatActivity {
                             break;
                         case CLOSED:
                             toast("Stomp connection closed");
+                            break;
+                        case FAILED_SERVER_HEARTBEAT:
+                            toast("Stomp failed server heartbeat");
+                            break;
                     }
                 });
 
+        compositeDisposable.add(dispLifecycle);
+
         // Receive greetings
-        mStompClient.topic("/topic/greetings")
+        Disposable dispTopic = mStompClient.topic("/topic/greetings")
                 .subscribeOn(Schedulers.io())
                 .observeOn(AndroidSchedulers.mainThread())
                 .subscribe(topicMessage -> {
@@ -83,7 +112,9 @@ public class MainActivity extends AppCompatActivity {
                     addItem(mGson.fromJson(topicMessage.getPayload(), EchoModel.class));
                 });
 
-        mStompClient.connect();
+        compositeDisposable.add(dispTopic);
+
+        mStompClient.connect(headers);
     }
 
     public void sendEchoViaStomp(View v) {
@@ -130,6 +161,12 @@ public class MainActivity extends AppCompatActivity {
     @Override
     protected void onDestroy() {
         mStompClient.disconnect();
+
+        if (compositeDisposable != null) {
+            compositeDisposable.dispose();
+            compositeDisposable = null;
+        }
+
         if (mRestPingDisposable != null) mRestPingDisposable.dispose();
         super.onDestroy();
     }

@@ -28,7 +28,7 @@ public class StompClient {
 
     private static final String TAG = StompClient.class.getSimpleName();
 
-    public static final String SUPPORTED_VERSIONS = "1.1,1.0";
+    public static final String SUPPORTED_VERSIONS = "1.1,1.2";
     public static final String DEFAULT_ACK = "auto";
 
     private final String tag = StompClient.class.getSimpleName();
@@ -197,7 +197,7 @@ public class StompClient {
                 .doOnError(t -> t.printStackTrace());
         CompletableSource connectionComplete = mConnectionStream
                 .filter(isConnected -> isConnected)
-                .firstOrError().toCompletable();
+                .firstOrError().ignoreElement();
         return completable
                 .startWith(connectionComplete);
     }
@@ -212,6 +212,12 @@ public class StompClient {
 
     public void disconnect() {
         disconnectCompletable().subscribe(() -> {}, e -> Log.e(tag, "Disconnect error", e));
+        if(mStreamMap != null && !mStreamMap.isEmpty()){
+            mStreamMap.clear();
+        }
+        if(mTopics != null && !mTopics.isEmpty()){
+            mTopics.clear();
+        }
     }
 
     public Completable disconnectCompletable() {
@@ -222,9 +228,7 @@ public class StompClient {
             mMessagesDisposable.dispose();
         }
         return mConnectionProvider.disconnect()
-                .doOnComplete(() -> {
-                    setConnected(false);
-                });
+                .doOnComplete(() -> setConnected(false));
     }
 
     public Flowable<StompMessage> topic(String destinationPath) {

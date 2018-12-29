@@ -5,7 +5,7 @@ package ua.naiksoftware.stomp;
  */
 public class StompHeader {
 
-    public static final String VERSION = "version";
+    public static final String VERSION = "accept-version";
     public static final String HEART_BEAT = "heart-beat";
     public static final String DESTINATION = "destination";
     public static final String CONTENT_TYPE = "content-type";

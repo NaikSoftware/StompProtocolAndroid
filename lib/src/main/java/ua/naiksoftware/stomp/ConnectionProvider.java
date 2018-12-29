@@ -45,5 +45,4 @@ public interface ConnectionProvider {
      * @param ms milliseconds
      */
     void setClientHeartbeat(int ms);
-
 }
