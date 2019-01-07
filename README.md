@@ -65,7 +65,6 @@ Check out the full example server https://github.com/NaikSoftware/stomp-protocol
 
 **Basic usage**
 ``` java
- import org.java_websocket.WebSocket;
 
  private StompClient mStompClient;
  
