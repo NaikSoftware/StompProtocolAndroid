@@ -16,7 +16,7 @@ repositories {
     maven { url "https://jitpack.io" }
 }
 dependencies {
-    compile 'com.github.NaikSoftware:StompProtocolAndroid:{latest version}'
+    implementation 'com.github.NaikSoftware:StompProtocolAndroid:{latest version}'
 }
 ```
 
