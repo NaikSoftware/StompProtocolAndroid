@@ -28,4 +28,9 @@ public class StompHeader {
     public String getValue() {
         return mValue;
     }
+
+    @Override
+    public String toString() {
+        return "StompHeader{" + mKey + '=' + mValue + '}';
+    }
 }

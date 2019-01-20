@@ -5,6 +5,7 @@ import groovy.util.logging.Slf4j
 import org.testcontainers.containers.BindMode
 import org.testcontainers.containers.GenericContainer
 import org.testcontainers.containers.output.OutputFrame
+import org.testcontainers.containers.startupcheck.StartupCheckStrategy
 import org.testcontainers.containers.wait.strategy.Wait
 import spock.lang.Shared
 import spock.lang.Specification
@@ -30,7 +31,7 @@ class Configuration extends AndroidSpecification {
                 .withCommand('java -jar /app.jar')
                 .withLogConsumer({ frame -> println frame.utf8String })
 //                .waitingFor(Wait.forHttp('/health'))
-                .withExposedPorts(80)
+                .withExposedPorts(8080)
         testServer.start()
         return testServer
     }

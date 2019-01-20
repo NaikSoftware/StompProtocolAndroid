@@ -11,7 +11,7 @@ class ConnectionTests extends Configuration {
         given:
         def client = Stomp.over(Stomp.ConnectionProvider.OKHTTP,
                 'ws://' + Configuration.testServer.getContainerIpAddress()
-                        + ':' + Configuration.testServer.getMappedPort(80) + '/example-endpoint/websocket')
+                        + ':' + Configuration.testServer.getFirstMappedPort() + '/example-endpoint/websocket')
         client.connect()
         def testSubscriber = new TestSubscriber<LifecycleEvent>()
 

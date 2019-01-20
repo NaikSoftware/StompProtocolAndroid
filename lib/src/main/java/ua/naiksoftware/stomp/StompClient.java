@@ -19,6 +19,8 @@ import io.reactivex.subjects.BehaviorSubject;
 import io.reactivex.subjects.PublishSubject;
 import ua.naiksoftware.stomp.dto.StompCommand;
 import ua.naiksoftware.stomp.dto.StompMessage;
+import ua.naiksoftware.stomp.pathmatcher.PathMatcher;
+import ua.naiksoftware.stomp.pathmatcher.SimplePathMatcher;
 import ua.naiksoftware.stomp.provider.ConnectionProvider;
 import ua.naiksoftware.stomp.dto.LifecycleEvent;
 import ua.naiksoftware.stomp.dto.StompHeader;
@@ -43,7 +45,7 @@ public class StompClient {
     private PublishSubject<StompMessage> mMessageStream;
     private ConcurrentHashMap<String, Flowable<StompMessage>> mStreamMap;
     private final BehaviorSubject<Boolean> mConnectionStream;
-    private Parser parser;
+    private PathMatcher pathMatcher;
     private Disposable mLifecycleDisposable;
     private Disposable mMessagesDisposable;
     private List<StompHeader> mHeaders;
@@ -56,27 +58,7 @@ public class StompClient {
         mMessageStream = PublishSubject.create();
         mStreamMap = new ConcurrentHashMap<>();
         mConnectionStream = BehaviorSubject.createDefault(false);
-        parser = Parser.NONE;
-    }
-
-    public enum Parser {
-        NONE,
-        RABBITMQ
-    }
-
-    /**
-     * Set the wildcard parser for Topic subscription.
-     * <p>
-     * Right now, the only options are NONE and RABBITMQ.
-     * <p>
-     * When set to RABBITMQ, topic subscription allows for RMQ-style wildcards.
-     * <p>
-     * See more info <a href="https://www.rabbitmq.com/tutorials/tutorial-five-java.html">here</a>.
-     *
-     * @param parser Set to NONE by default
-     */
-    public void setParser(Parser parser) {
-        this.parser = parser;
+        pathMatcher = new SimplePathMatcher();
     }
 
     /**
@@ -243,7 +225,7 @@ public class StompClient {
         else if (!mStreamMap.containsKey(destPath))
             mStreamMap.put(destPath,
                     mMessageStream
-                            .filter(msg -> matches(destPath, msg))
+                            .filter(msg -> pathMatcher.matches(destPath, msg))
                             .toFlowable(BackpressureStrategy.BUFFER)
                             .doOnSubscribe(disposable -> subscribePath(destPath, headerList).subscribe())
                             .doFinally(() -> unsubscribePath(destPath).subscribe())
@@ -267,56 +249,19 @@ public class StompClient {
         this.legacyWhitespace = legacyWhitespace;
     }
 
-    private boolean matches(String path, StompMessage msg) {
-        String dest = msg.findHeader(StompHeader.DESTINATION);
-        if (dest == null) return false;
-        boolean ret;
-
-        switch (parser) {
-            case NONE:
-                ret = path.equals(dest);
-                break;
-
-            case RABBITMQ:
-                // for example string "lorem.ipsum.*.sit":
-
-                // split it up into ["lorem", "ipsum", "*", "sit"]
-                String[] split = path.split("\\.");
-                ArrayList<String> transformed = new ArrayList<>();
-                // check for wildcards and replace with corresponding regex
-                for (String s : split) {
-                    switch (s) {
-                        case "*":
-                            transformed.add("[^.]+");
-                            break;
-                        case "#":
-                            // TODO: make this work with zero-word
-                            // e.g. "lorem.#.dolor" should ideally match "lorem.dolor"
-                            transformed.add(".*");
-                            break;
-                        default:
-                            transformed.add(s);
-                            break;
-                    }
-                }
-                // at this point, 'transformed' looks like ["lorem", "ipsum", "[^.]+", "sit"]
-                StringBuilder sb = new StringBuilder();
-                for (String s : transformed) {
-                    if (sb.length() > 0) sb.append("\\.");
-                    sb.append(s);
-                }
-                String join = sb.toString();
-                // join = "lorem\.ipsum\.[^.]+\.sit"
-
-                ret = dest.matches(join);
-                break;
-
-            default:
-                ret = false;
-                break;
-        }
-
-        return ret;
+    /**
+     * Set the wildcard or other matcher for Topic subscription.
+     * <p>
+     * Right now, the only options are simple, rmq supported.
+     * But you can write you own matcher by implementing {@link PathMatcher}
+     * <p>
+     * When set to {@link ua.naiksoftware.stomp.pathmatcher.RabbitPathMatcher}, topic subscription allows for RMQ-style wildcards.
+     * <p>
+     *
+     * @param pathMatcher Set to {@link SimplePathMatcher} by default
+     */
+    public void setPathMatcher(PathMatcher pathMatcher) {
+        this.pathMatcher = pathMatcher;
     }
 
     private Completable subscribePath(String destinationPath, @Nullable List<StompHeader> headerList) {

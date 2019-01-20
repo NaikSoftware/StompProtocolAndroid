@@ -93,4 +93,13 @@ public class StompMessage {
 
         return new StompMessage(command, headers, payload);
     }
+
+    @Override
+    public String toString() {
+        return "StompMessage{" +
+                "command='" + mStompCommand + '\'' +
+                ", headers=" + mStompHeaders +
+                ", payload='" + mPayload + '\'' +
+                '}';
+    }
 }
