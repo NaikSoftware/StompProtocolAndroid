@@ -1,4 +1,4 @@
-package ua.naiksoftware.stomp;
+package ua.naiksoftware.stomp.provider;
 
 import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
@@ -12,8 +12,10 @@ import io.reactivex.Scheduler;
 import io.reactivex.disposables.Disposable;
 import io.reactivex.schedulers.Schedulers;
 import io.reactivex.subjects.PublishSubject;
-import ua.naiksoftware.stomp.client.StompCommand;
-import ua.naiksoftware.stomp.client.StompMessage;
+import ua.naiksoftware.stomp.dto.LifecycleEvent;
+import ua.naiksoftware.stomp.dto.StompHeader;
+import ua.naiksoftware.stomp.dto.StompCommand;
+import ua.naiksoftware.stomp.dto.StompMessage;
 
 /**
  * Created by forresthopkinsa on 8/8/2017.
@@ -21,7 +23,7 @@ import ua.naiksoftware.stomp.client.StompMessage;
  * Created because there was a lot of shared code between JWS and OkHttp connection providers.
  */
 
-abstract class AbstractConnectionProvider implements ConnectionProvider {
+public abstract class AbstractConnectionProvider implements ConnectionProvider {
 
     private static final String TAG = AbstractConnectionProvider.class.getSimpleName();
 
@@ -40,7 +42,7 @@ abstract class AbstractConnectionProvider implements ConnectionProvider {
     @NonNull
     private final PublishSubject<String> mMessagesStream;
 
-    AbstractConnectionProvider() {
+    public AbstractConnectionProvider() {
         mLifecycleStream = PublishSubject.create();
         mMessagesStream = PublishSubject.create();
     }

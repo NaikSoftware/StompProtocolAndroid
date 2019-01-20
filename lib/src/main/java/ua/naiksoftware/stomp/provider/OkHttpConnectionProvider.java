@@ -1,4 +1,4 @@
-package ua.naiksoftware.stomp;
+package ua.naiksoftware.stomp.provider;
 
 import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
@@ -15,8 +15,9 @@ import okhttp3.Response;
 import okhttp3.WebSocket;
 import okhttp3.WebSocketListener;
 import okio.ByteString;
+import ua.naiksoftware.stomp.dto.LifecycleEvent;
 
-class OkHttpConnectionProvider extends AbstractConnectionProvider {
+public class OkHttpConnectionProvider extends AbstractConnectionProvider {
 
     public static final String TAG = "OkHttpConnProvider";
 
@@ -28,7 +29,7 @@ class OkHttpConnectionProvider extends AbstractConnectionProvider {
     @Nullable
     private WebSocket openSocket;
 
-    OkHttpConnectionProvider(String uri, @Nullable Map<String, String> connectHttpHeaders, OkHttpClient okHttpClient) {
+    public OkHttpConnectionProvider(String uri, @Nullable Map<String, String> connectHttpHeaders, OkHttpClient okHttpClient) {
         super();
         mUri = uri;
         mConnectHttpHeaders = connectHttpHeaders != null ? connectHttpHeaders : new HashMap<>();

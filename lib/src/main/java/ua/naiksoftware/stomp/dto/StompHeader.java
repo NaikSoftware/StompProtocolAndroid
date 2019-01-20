@@ -1,4 +1,4 @@
-package ua.naiksoftware.stomp;
+package ua.naiksoftware.stomp.dto;
 
 /**
  * Created by naik on 05.05.16.

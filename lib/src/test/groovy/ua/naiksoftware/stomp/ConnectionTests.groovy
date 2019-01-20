@@ -1,17 +1,9 @@
 package ua.naiksoftware.stomp
 
-import groovy.util.logging.Log4j
-import groovy.util.logging.Slf4j
-import io.reactivex.Flowable
-import io.reactivex.annotations.NonNull
+
 import io.reactivex.functions.Predicate
 import io.reactivex.subscribers.TestSubscriber
-import org.testcontainers.containers.GenericContainer
-import spock.lang.Shared
-import ua.naiksoftware.stomp.Configuration
-import ua.naiksoftware.stomp.Stomp
-
-import java.util.concurrent.TimeUnit
+import ua.naiksoftware.stomp.dto.LifecycleEvent
 
 class ConnectionTests extends Configuration {
 

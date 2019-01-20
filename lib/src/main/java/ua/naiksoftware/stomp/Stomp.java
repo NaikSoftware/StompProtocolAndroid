@@ -6,7 +6,8 @@ import android.support.annotation.Nullable;
 import java.util.Map;
 
 import okhttp3.OkHttpClient;
-import ua.naiksoftware.stomp.client.StompClient;
+import ua.naiksoftware.stomp.provider.OkHttpConnectionProvider;
+import ua.naiksoftware.stomp.provider.WebSocketsConnectionProvider;
 
 /**
  * Supported overlays:
@@ -62,7 +63,7 @@ public class Stomp {
         throw new IllegalArgumentException("ConnectionProvider type not supported: " + connectionProvider.toString());
     }
 
-    private static StompClient createStompClient(ua.naiksoftware.stomp.ConnectionProvider connectionProvider) {
+    private static StompClient createStompClient(ua.naiksoftware.stomp.provider.ConnectionProvider connectionProvider) {
         return new StompClient(connectionProvider);
     }
 

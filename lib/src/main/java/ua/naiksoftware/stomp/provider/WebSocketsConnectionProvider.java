@@ -1,4 +1,4 @@
-package ua.naiksoftware.stomp;
+package ua.naiksoftware.stomp.provider;
 
 import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
@@ -10,6 +10,7 @@ import org.java_websocket.drafts.Draft_6455;
 import org.java_websocket.exceptions.InvalidDataException;
 import org.java_websocket.handshake.ClientHandshake;
 import org.java_websocket.handshake.ServerHandshake;
+import ua.naiksoftware.stomp.dto.LifecycleEvent;
 
 import java.net.URI;
 import java.util.HashMap;
@@ -24,7 +25,7 @@ import javax.net.ssl.SSLSocketFactory;
  * Created by naik on 05.05.16.
  */
 
-class WebSocketsConnectionProvider extends AbstractConnectionProvider {
+public class WebSocketsConnectionProvider extends AbstractConnectionProvider {
 
     private static final String TAG = WebSocketsConnectionProvider.class.getSimpleName();
 
@@ -41,7 +42,7 @@ class WebSocketsConnectionProvider extends AbstractConnectionProvider {
      *
      * @param connectHttpHeaders may be null
      */
-    WebSocketsConnectionProvider(String uri, @Nullable Map<String, String> connectHttpHeaders) {
+    public WebSocketsConnectionProvider(String uri, @Nullable Map<String, String> connectHttpHeaders) {
         mUri = uri;
         mConnectHttpHeaders = connectHttpHeaders != null ? connectHttpHeaders : new HashMap<>();
     }

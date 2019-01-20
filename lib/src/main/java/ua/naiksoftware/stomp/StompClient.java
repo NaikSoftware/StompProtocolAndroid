@@ -1,4 +1,4 @@
-package ua.naiksoftware.stomp.client;
+package ua.naiksoftware.stomp;
 
 import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
@@ -17,9 +17,11 @@ import io.reactivex.Flowable;
 import io.reactivex.disposables.Disposable;
 import io.reactivex.subjects.BehaviorSubject;
 import io.reactivex.subjects.PublishSubject;
-import ua.naiksoftware.stomp.ConnectionProvider;
-import ua.naiksoftware.stomp.LifecycleEvent;
-import ua.naiksoftware.stomp.StompHeader;
+import ua.naiksoftware.stomp.dto.StompCommand;
+import ua.naiksoftware.stomp.dto.StompMessage;
+import ua.naiksoftware.stomp.provider.ConnectionProvider;
+import ua.naiksoftware.stomp.dto.LifecycleEvent;
+import ua.naiksoftware.stomp.dto.StompHeader;
 
 /**
  * Created by naik on 05.05.16.

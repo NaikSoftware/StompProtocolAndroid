@@ -1,4 +1,4 @@
-package ua.naiksoftware.stomp;
+package ua.naiksoftware.stomp.dto;
 
 
 import java.util.TreeMap;

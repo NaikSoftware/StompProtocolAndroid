@@ -1,8 +1,8 @@
-package ua.naiksoftware.stomp;
+package ua.naiksoftware.stomp.provider;
 
 import io.reactivex.Completable;
-import io.reactivex.Flowable;
 import io.reactivex.Observable;
+import ua.naiksoftware.stomp.dto.LifecycleEvent;
 
 /**
  * Created by naik on 05.05.16.

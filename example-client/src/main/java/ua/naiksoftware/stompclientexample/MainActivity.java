@@ -23,8 +23,8 @@ import io.reactivex.disposables.CompositeDisposable;
 import io.reactivex.disposables.Disposable;
 import io.reactivex.schedulers.Schedulers;
 import ua.naiksoftware.stomp.Stomp;
-import ua.naiksoftware.stomp.StompHeader;
-import ua.naiksoftware.stomp.client.StompClient;
+import ua.naiksoftware.stomp.dto.StompHeader;
+import ua.naiksoftware.stomp.StompClient;
 
 import static ua.naiksoftware.stompclientexample.RestClient.ANDROID_EMULATOR_LOCALHOST;
 
