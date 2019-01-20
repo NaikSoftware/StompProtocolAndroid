@@ -118,14 +118,14 @@ public class MainActivity extends AppCompatActivity {
     }
 
     public void sendEchoViaStomp(View v) {
-        mStompClient.send("/topic/hello-msg-mapping", "Echo STOMP " + mTimeFormat.format(new Date()))
+        compositeDisposable.add(mStompClient.send("/topic/hello-msg-mapping", "Echo STOMP " + mTimeFormat.format(new Date()))
                 .compose(applySchedulers())
                 .subscribe(() -> {
                     Log.d(TAG, "STOMP echo send successfully");
                 }, throwable -> {
                     Log.e(TAG, "Error send STOMP echo", throwable);
                     toast(throwable.getMessage());
-                });
+                }));
     }
 
     public void sendEchoViaRest(View v) {
