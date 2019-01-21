@@ -64,7 +64,6 @@ public class OkHttpConnectionProvider extends AbstractConnectionProvider {
 
                     @Override
                     public void onMessage(WebSocket webSocket, String text) {
-                        Log.d(TAG, "onMessage: " + text);
                         emitMessage(text);
                     }
 
