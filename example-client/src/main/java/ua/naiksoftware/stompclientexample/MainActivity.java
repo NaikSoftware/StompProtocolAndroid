@@ -51,16 +51,13 @@ public class MainActivity extends AppCompatActivity {
         mAdapter.setHasStableIds(true);
         mRecyclerView.setAdapter(mAdapter);
         mRecyclerView.setLayoutManager(new LinearLayoutManager(this, LinearLayoutManager.VERTICAL, true));
+
+        mStompClient = Stomp.over(Stomp.ConnectionProvider.OKHTTP, "ws://" + ANDROID_EMULATOR_LOCALHOST
+                + ":" + RestClient.SERVER_PORT + "/example-endpoint/websocket");
     }
 
     public void disconnectStomp(View view) {
         mStompClient.disconnect();
-
-        if (compositeDisposable != null) {
-            compositeDisposable.dispose();
-
-            compositeDisposable = null;
-        }
     }
 
     public static final String LOGIN = "login";
@@ -73,11 +70,9 @@ public class MainActivity extends AppCompatActivity {
         headers.add(new StompHeader(LOGIN, "guest"));
         headers.add(new StompHeader(PASSCODE, "guest"));
 
-        mStompClient = Stomp.over(Stomp.ConnectionProvider.JWS, "ws://" + ANDROID_EMULATOR_LOCALHOST
-                + ":" + RestClient.SERVER_PORT + "/example-endpoint/websocket");
-
         mStompClient.withClientHeartbeat(30000).withServerHeartbeat(30000);
 
+        clearSubscriptions();
         compositeDisposable = new CompositeDisposable();
 
         Disposable dispLifecycle = mStompClient.lifecycle()
@@ -94,6 +89,7 @@ public class MainActivity extends AppCompatActivity {
                             break;
                         case CLOSED:
                             toast("Stomp connection closed");
+                            clearSubscriptions();
                             break;
                         case FAILED_SERVER_HEARTBEAT:
                             toast("Stomp failed server heartbeat");
@@ -158,14 +154,17 @@ public class MainActivity extends AppCompatActivity {
                 .observeOn(AndroidSchedulers.mainThread());
     }
 
+    private void clearSubscriptions() {
+        if (compositeDisposable != null) {
+            compositeDisposable.dispose();
+
+            compositeDisposable = null;
+        }
+    }
+
     @Override
     protected void onDestroy() {
         mStompClient.disconnect();
-
-        if (compositeDisposable != null) {
-            compositeDisposable.dispose();
-            compositeDisposable = null;
-        }
 
         if (mRestPingDisposable != null) mRestPingDisposable.dispose();
         super.onDestroy();

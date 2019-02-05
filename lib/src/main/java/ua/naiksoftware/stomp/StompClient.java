@@ -1,5 +1,6 @@
 package ua.naiksoftware.stomp;
 
+import android.annotation.SuppressLint;
 import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
 import android.util.Log;
@@ -55,7 +56,6 @@ public class StompClient {
 
     public StompClient(ConnectionProvider connectionProvider) {
         mConnectionProvider = connectionProvider;
-        mMessageStream = PublishSubject.create();
         mStreamMap = new ConcurrentHashMap<>();
         mConnectionStream = BehaviorSubject.createDefault(false);
         pathMatcher = new SimplePathMatcher();
@@ -123,14 +123,11 @@ public class StompClient {
 
                         case CLOSED:
                             Log.d(TAG, "Socket closed");
-                            setConnected(false);
-                            isConnecting = false;
+                            disconnect();
                             break;
 
                         case ERROR:
                             Log.d(TAG, "Socket closed with error");
-                            setConnected(false);
-                            isConnecting = false;
                             break;
 
                         case FAILED_SERVER_HEARTBEAT:
@@ -143,12 +140,19 @@ public class StompClient {
         isConnecting = true;
         mMessagesDisposable = mConnectionProvider.messages()
                 .map(StompMessage::from)
-                .doOnNext(this::callSubscribers)
+                .doOnNext(getMessageStream()::onNext)
                 .filter(msg -> msg.getStompCommand().equals(StompCommand.CONNECTED))
                 .subscribe(stompMessage -> {
                     setConnected(true);
                     isConnecting = false;
                 });
+    }
+
+    private PublishSubject<StompMessage> getMessageStream() {
+        if (mMessageStream == null || mMessageStream.hasComplete()) {
+            mMessageStream = PublishSubject.create();
+        }
+        return mMessageStream;
     }
 
     private void setConnected(boolean connected) {
@@ -159,6 +163,7 @@ public class StompClient {
     /**
      * Disconnect from server, and then reconnect with the last-used headers
      */
+    @SuppressLint("CheckResult")
     public void reconnect() {
         disconnectCompletable()
                 .subscribe(() -> connect(mHeaders),
@@ -186,33 +191,33 @@ public class StompClient {
                 .startWith(connectionComplete);
     }
 
-    private void callSubscribers(StompMessage stompMessage) {
-        mMessageStream.onNext(stompMessage);
-    }
-
     public Flowable<LifecycleEvent> lifecycle() {
         return mConnectionProvider.lifecycle().toFlowable(BackpressureStrategy.BUFFER);
     }
 
     public void disconnect() {
+        if (!mConnected) {
+            Log.d(TAG, "Skip disconnect, already not connected");
+            return;
+        }
         disconnectCompletable().subscribe(() -> {}, e -> Log.e(tag, "Disconnect error", e));
-        if(mStreamMap != null && !mStreamMap.isEmpty()){
-            mStreamMap.clear();
-        }
-        if(mTopics != null && !mTopics.isEmpty()){
-            mTopics.clear();
-        }
     }
 
     public Completable disconnectCompletable() {
-        if (mLifecycleDisposable != null) {
-            mLifecycleDisposable.dispose();
-        }
-        if (mMessagesDisposable != null) {
-            mMessagesDisposable.dispose();
-        }
         return mConnectionProvider.disconnect()
-                .doOnComplete(() -> setConnected(false));
+                .doOnComplete(() -> {
+                    setConnected(false);
+                    isConnecting = false;
+                    if (mLifecycleDisposable != null) {
+                        mLifecycleDisposable.dispose();
+                    }
+                    if (mMessagesDisposable != null) {
+                        mMessagesDisposable.dispose();
+                    }
+                    if (mMessageStream != null && !mMessageStream.hasComplete()) {
+                        mMessageStream.onComplete();
+                    }
+                });
     }
 
     public Flowable<StompMessage> topic(String destinationPath) {
@@ -224,7 +229,7 @@ public class StompClient {
             return Flowable.error(new IllegalArgumentException("Topic path cannot be null"));
         else if (!mStreamMap.containsKey(destPath))
             mStreamMap.put(destPath,
-                    mMessageStream
+                    getMessageStream()
                             .filter(msg -> pathMatcher.matches(destPath, msg))
                             .toFlowable(BackpressureStrategy.BUFFER)
                             .doOnSubscribe(disposable -> subscribePath(destPath, headerList).subscribe())
@@ -293,6 +298,11 @@ public class StompClient {
         mTopics.remove(dest);
 
         Log.d(TAG, "Unsubscribe path: " + dest + " id: " + topicId);
+
+        if (!mConnected) {
+            Log.d(TAG, "Not connected, skip sending Unsubscribe frame to " + dest);
+            return Completable.complete();
+        }
 
         return send(new StompMessage(StompCommand.UNSUBSCRIBE,
                 Collections.singletonList(new StompHeader(StompHeader.ID, topicId)), null));
