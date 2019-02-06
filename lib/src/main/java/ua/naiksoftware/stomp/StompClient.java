@@ -38,14 +38,11 @@ public class StompClient {
 
     private final ConnectionProvider connectionProvider;
     private ConcurrentHashMap<String, String> topics;
-    private boolean isConnected;
-    private boolean isConnecting;
-    private boolean forceClose;
     private boolean legacyWhitespace;
 
-    private PublishSubject<StompMessage> messageStream;
+    private final PublishSubject<StompMessage> messageStream;
+    private BehaviorSubject<Boolean> connectionStream;
     private ConcurrentHashMap<String, Flowable<StompMessage>> streamMap;
-    private final BehaviorSubject<Boolean> connectionStream;
     private PathMatcher pathMatcher;
     private Disposable lifecycleDisposable;
     private Disposable messagesDisposable;
@@ -56,7 +53,7 @@ public class StompClient {
     public StompClient(ConnectionProvider connectionProvider) {
         this.connectionProvider = connectionProvider;
         streamMap = new ConcurrentHashMap<>();
-        connectionStream = BehaviorSubject.createDefault(false);
+        messageStream = PublishSubject.create();
         lifecyclePublishSubject = PublishSubject.create();
         pathMatcher = new SimplePathMatcher();
         heartBeatTask = new HeartBeatTask(this::sendHeartBeat, () -> {
@@ -106,7 +103,7 @@ public class StompClient {
 
         this.headers = _headers;
 
-        if (isConnected) {
+        if (isConnected()) {
             Log.d(TAG, "Already connected, ignore");
             return;
         }
@@ -129,7 +126,7 @@ public class StompClient {
 
                         case CLOSED:
                             Log.d(TAG, "Socket closed");
-                            forceClose = true;
+                            getConnectionStream().onNext(false);
                             disconnect();
                             break;
 
@@ -140,28 +137,21 @@ public class StompClient {
                     }
                 });
 
-        isConnecting = true;
         messagesDisposable = connectionProvider.messages()
                 .map(StompMessage::from)
                 .filter(heartBeatTask::consumeHeartBeat)
-                .doOnNext(getMessageStream()::onNext)
+                .doOnNext(messageStream::onNext)
                 .filter(msg -> msg.getStompCommand().equals(StompCommand.CONNECTED))
                 .subscribe(stompMessage -> {
-                    isConnecting = false;
-                    setConnected(true);
+                    getConnectionStream().onNext(true);
                 });
     }
 
-    private PublishSubject<StompMessage> getMessageStream() {
-        if (messageStream == null || messageStream.hasComplete()) {
-            messageStream = PublishSubject.create();
+    private BehaviorSubject<Boolean> getConnectionStream() {
+        if (connectionStream == null || connectionStream.hasComplete()) {
+            connectionStream = BehaviorSubject.createDefault(false);
         }
-        return messageStream;
-    }
-
-    private void setConnected(boolean connected) {
-        isConnected = connected;
-        connectionStream.onNext(isConnected);
+        return connectionStream;
     }
 
     public Completable send(String destination) {
@@ -177,9 +167,9 @@ public class StompClient {
 
     public Completable send(@NonNull StompMessage stompMessage) {
         Completable completable = connectionProvider.send(stompMessage.compile(legacyWhitespace));
-        CompletableSource connectionComplete = connectionStream
+        CompletableSource connectionComplete = getConnectionStream()
                 .filter(isConnected -> isConnected)
-                .firstOrError().ignoreElement();
+                .firstElement().ignoreElement();
         return completable
                 .startWith(connectionComplete);
     }
@@ -187,7 +177,7 @@ public class StompClient {
     @SuppressLint("CheckResult")
     private void sendHeartBeat(@NonNull String pingMessage) {
         Completable completable = connectionProvider.send(pingMessage);
-        CompletableSource connectionComplete = connectionStream
+        CompletableSource connectionComplete = getConnectionStream()
                 .filter(isConnected -> isConnected)
                 .firstOrError().ignoreElement();
         completable.startWith(connectionComplete)
@@ -214,10 +204,6 @@ public class StompClient {
     }
 
     public Completable disconnectCompletable() {
-        if (!isConnected && !isConnecting) {
-            Log.d(TAG, "Skip disconnect, already not connected");
-            return Completable.complete();
-        }
 
         heartBeatTask.shutdown();
 
@@ -227,16 +213,11 @@ public class StompClient {
         if (messagesDisposable != null) {
             messagesDisposable.dispose();
         }
-        if (messageStream != null && !messageStream.hasComplete()) {
-            messageStream.onComplete();
-        }
 
         return connectionProvider.disconnect()
                 .doFinally(() -> {
                     Log.d(TAG, "Stomp disconnected");
-                    forceClose = false;
-                    isConnecting = false;
-                    setConnected(false);
+                    getConnectionStream().onComplete();
                     lifecyclePublishSubject.onNext(new LifecycleEvent(LifecycleEvent.Type.CLOSED));
                 });
     }
@@ -250,7 +231,7 @@ public class StompClient {
             return Flowable.error(new IllegalArgumentException("Topic path cannot be null"));
         else if (!streamMap.containsKey(destPath))
             streamMap.put(destPath,
-                    getMessageStream()
+                    messageStream
                             .filter(msg -> pathMatcher.matches(destPath, msg))
                             .toFlowable(BackpressureStrategy.BUFFER)
                             .doOnSubscribe(disposable -> subscribePath(destPath, headerList).subscribe())
@@ -290,16 +271,6 @@ public class StompClient {
 
         Log.d(TAG, "Unsubscribe path: " + dest + " id: " + topicId);
 
-        if (forceClose) {
-            Log.d(TAG, "Force close, skip sending Unsubscribe frame to " + dest);
-            return Completable.complete();
-        }
-
-        if (!isConnected) {
-            Log.d(TAG, "Not connected, skip sending Unsubscribe frame to " + dest);
-            return Completable.complete();
-        }
-
         return send(new StompMessage(StompCommand.UNSUBSCRIBE,
                 Collections.singletonList(new StompHeader(StompHeader.ID, topicId)), null));
     }
@@ -320,11 +291,7 @@ public class StompClient {
     }
 
     public boolean isConnected() {
-        return isConnected;
-    }
-
-    public boolean isConnecting() {
-        return isConnecting;
+        return getConnectionStream().getValue();
     }
 
     /**

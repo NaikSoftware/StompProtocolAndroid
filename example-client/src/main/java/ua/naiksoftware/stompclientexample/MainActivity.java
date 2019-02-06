@@ -54,6 +54,8 @@ public class MainActivity extends AppCompatActivity {
 
         mStompClient = Stomp.over(Stomp.ConnectionProvider.OKHTTP, "ws://" + ANDROID_EMULATOR_LOCALHOST
                 + ":" + RestClient.SERVER_PORT + "/example-endpoint/websocket");
+
+        resetSubscriptions();
     }
 
     public void disconnectStomp(View view) {
@@ -96,7 +98,7 @@ public class MainActivity extends AppCompatActivity {
                     }
                 });
 
-        compositeDisposable.add(dispLifecycle);
+//        compositeDisposable.add(dispLifecycle);
 
         // Receive greetings
         Disposable dispTopic = mStompClient.topic("/topic/greetings")
@@ -109,7 +111,7 @@ public class MainActivity extends AppCompatActivity {
                     Log.e(TAG, "Error on subscribe topic", throwable);
                 });
 
-        compositeDisposable.add(dispTopic);
+//        compositeDisposable.add(dispTopic);
 
         mStompClient.connect(headers);
     }
