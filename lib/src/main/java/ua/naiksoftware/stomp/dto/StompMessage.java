@@ -86,7 +86,7 @@ public class StompMessage {
             headers.add(new StompHeader(matcher.group(1), matcher.group(2)));
         }
 
-        reader.skip("\\s");
+        reader.skip("\n\n");
 
         reader.useDelimiter(TERMINATE_MESSAGE_SYMBOL);
         String payload = reader.hasNext() ? reader.next() : null;

@@ -31,18 +31,4 @@ public interface ConnectionProvider {
      * Automatically emits Lifecycle.CLOSE
      */
     Completable disconnect();
-
-    /**
-     * Set the server heart-beat
-     *
-     * @param ms milliseconds
-     */
-    void setServerHeartbeat(int ms);
-
-    /**
-     * Set the client heart-beat
-     *
-     * @param ms milliseconds
-     */
-    void setClientHeartbeat(int ms);
 }

@@ -70,10 +70,9 @@ public class MainActivity extends AppCompatActivity {
         headers.add(new StompHeader(LOGIN, "guest"));
         headers.add(new StompHeader(PASSCODE, "guest"));
 
-        mStompClient.withClientHeartbeat(30000).withServerHeartbeat(30000);
+        mStompClient.withClientHeartbeat(1000).withServerHeartbeat(1000);
 
-        clearSubscriptions();
-        compositeDisposable = new CompositeDisposable();
+        resetSubscriptions();
 
         Disposable dispLifecycle = mStompClient.lifecycle()
                 .subscribeOn(Schedulers.io())
@@ -89,7 +88,7 @@ public class MainActivity extends AppCompatActivity {
                             break;
                         case CLOSED:
                             toast("Stomp connection closed");
-                            clearSubscriptions();
+                            resetSubscriptions();
                             break;
                         case FAILED_SERVER_HEARTBEAT:
                             toast("Stomp failed server heartbeat");
@@ -106,6 +105,8 @@ public class MainActivity extends AppCompatActivity {
                 .subscribe(topicMessage -> {
                     Log.d(TAG, "Received " + topicMessage.getPayload());
                     addItem(mGson.fromJson(topicMessage.getPayload(), EchoModel.class));
+                }, throwable -> {
+                    Log.e(TAG, "Error on subscribe topic", throwable);
                 });
 
         compositeDisposable.add(dispTopic);
@@ -114,7 +115,7 @@ public class MainActivity extends AppCompatActivity {
     }
 
     public void sendEchoViaStomp(View v) {
-        if (!mStompClient.isConnected()) return;
+//        if (!mStompClient.isConnected()) return;
         compositeDisposable.add(mStompClient.send("/topic/hello-msg-mapping", "Echo STOMP " + mTimeFormat.format(new Date()))
                 .compose(applySchedulers())
                 .subscribe(() -> {
@@ -155,12 +156,11 @@ public class MainActivity extends AppCompatActivity {
                 .observeOn(AndroidSchedulers.mainThread());
     }
 
-    private void clearSubscriptions() {
+    private void resetSubscriptions() {
         if (compositeDisposable != null) {
             compositeDisposable.dispose();
-
-            compositeDisposable = null;
         }
+        compositeDisposable = new CompositeDisposable();
     }
 
     @Override
@@ -168,6 +168,7 @@ public class MainActivity extends AppCompatActivity {
         mStompClient.disconnect();
 
         if (mRestPingDisposable != null) mRestPingDisposable.dispose();
+        if (compositeDisposable != null) compositeDisposable.dispose();
         super.onDestroy();
     }
 }

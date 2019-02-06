@@ -40,7 +40,7 @@ public class StompClient {
     private ConcurrentHashMap<String, String> topics;
     private boolean isConnected;
     private boolean isConnecting;
-    private boolean isDisconnecting;
+    private boolean forceClose;
     private boolean legacyWhitespace;
 
     private PublishSubject<StompMessage> messageStream;
@@ -51,9 +51,7 @@ public class StompClient {
     private Disposable messagesDisposable;
     private PublishSubject<LifecycleEvent> lifecyclePublishSubject;
     private List<StompHeader> headers;
-
-    private int serverHeartbeat = 0;
-    private int clientHeartbeat = 0;
+    private HeartBeatTask heartBeatTask;
 
     public StompClient(ConnectionProvider connectionProvider) {
         this.connectionProvider = connectionProvider;
@@ -61,6 +59,9 @@ public class StompClient {
         connectionStream = BehaviorSubject.createDefault(false);
         lifecyclePublishSubject = PublishSubject.create();
         pathMatcher = new SimplePathMatcher();
+        heartBeatTask = new HeartBeatTask(this::sendHeartBeat, () -> {
+            lifecyclePublishSubject.onNext(new LifecycleEvent(LifecycleEvent.Type.FAILED_SERVER_HEARTBEAT));
+        });
     }
 
     /**
@@ -71,8 +72,7 @@ public class StompClient {
      * @param ms heartbeat time in milliseconds
      */
     public StompClient withServerHeartbeat(int ms) {
-        connectionProvider.setServerHeartbeat(ms);
-        this.serverHeartbeat = ms;
+        heartBeatTask.setServerHeartbeat(ms);
         return this;
     }
 
@@ -84,8 +84,7 @@ public class StompClient {
      * @param ms heartbeat time in milliseconds
      */
     public StompClient withClientHeartbeat(int ms) {
-        connectionProvider.setClientHeartbeat(ms);
-        this.clientHeartbeat = ms;
+        heartBeatTask.setClientHeartbeat(ms);
         return this;
     }
 
@@ -105,7 +104,7 @@ public class StompClient {
 
         Log.d(TAG, "Connect");
 
-        headers = _headers;
+        this.headers = _headers;
 
         if (isConnected) {
             Log.d(TAG, "Already connected, ignore");
@@ -117,8 +116,11 @@ public class StompClient {
                         case OPENED:
                             List<StompHeader> headers = new ArrayList<>();
                             headers.add(new StompHeader(StompHeader.VERSION, SUPPORTED_VERSIONS));
-                            headers.add(new StompHeader(StompHeader.HEART_BEAT, clientHeartbeat + "," + serverHeartbeat));
+                            headers.add(new StompHeader(StompHeader.HEART_BEAT,
+                                    heartBeatTask.getClientHeartbeat() + "," + heartBeatTask.getServerHeartbeat()));
+
                             if (_headers != null) headers.addAll(_headers);
+
                             connectionProvider.send(new StompMessage(StompCommand.CONNECT, headers, null).compile(legacyWhitespace))
                                     .subscribe(() -> {
                                         lifecyclePublishSubject.onNext(lifecycleEvent);
@@ -127,29 +129,21 @@ public class StompClient {
 
                         case CLOSED:
                             Log.d(TAG, "Socket closed");
-                            if (!isDisconnecting) {
-                                disconnect();
-                            }
-                            isConnecting = false;
-                            setConnected(false);
+                            forceClose = true;
+                            disconnect();
                             break;
 
                         case ERROR:
                             Log.d(TAG, "Socket closed with error");
                             lifecyclePublishSubject.onNext(lifecycleEvent);
                             break;
-
-                        case FAILED_SERVER_HEARTBEAT:
-                            Log.d(TAG, "Server failed to send heart-beat in time");
-                            lifecyclePublishSubject.onNext(lifecycleEvent);
-                            break;
-
                     }
                 });
 
         isConnecting = true;
         messagesDisposable = connectionProvider.messages()
                 .map(StompMessage::from)
+                .filter(heartBeatTask::consumeHeartBeat)
                 .doOnNext(getMessageStream()::onNext)
                 .filter(msg -> msg.getStompCommand().equals(StompCommand.CONNECTED))
                 .subscribe(stompMessage -> {
@@ -182,13 +176,22 @@ public class StompClient {
     }
 
     public Completable send(@NonNull StompMessage stompMessage) {
-        Completable completable = connectionProvider.send(stompMessage.compile(legacyWhitespace))
-                .doOnError(Throwable::printStackTrace);
+        Completable completable = connectionProvider.send(stompMessage.compile(legacyWhitespace));
         CompletableSource connectionComplete = connectionStream
                 .filter(isConnected -> isConnected)
                 .firstOrError().ignoreElement();
         return completable
                 .startWith(connectionComplete);
+    }
+
+    @SuppressLint("CheckResult")
+    private void sendHeartBeat(@NonNull String pingMessage) {
+        Completable completable = connectionProvider.send(pingMessage);
+        CompletableSource connectionComplete = connectionStream
+                .filter(isConnected -> isConnected)
+                .firstOrError().ignoreElement();
+        completable.startWith(connectionComplete)
+                .subscribe(() -> {}, Throwable::printStackTrace);
     }
 
     public Flowable<LifecycleEvent> lifecycle() {
@@ -216,6 +219,8 @@ public class StompClient {
             return Completable.complete();
         }
 
+        heartBeatTask.shutdown();
+
         if (lifecycleDisposable != null) {
             lifecycleDisposable.dispose();
         }
@@ -226,11 +231,12 @@ public class StompClient {
             messageStream.onComplete();
         }
 
-        isDisconnecting = true;
         return connectionProvider.disconnect()
                 .doFinally(() -> {
-                    isDisconnecting = false;
                     Log.d(TAG, "Stomp disconnected");
+                    forceClose = false;
+                    isConnecting = false;
+                    setConnected(false);
                     lifecyclePublishSubject.onNext(new LifecycleEvent(LifecycleEvent.Type.CLOSED));
                 });
     }
@@ -252,36 +258,6 @@ public class StompClient {
                             .share()
             );
         return streamMap.get(destPath);
-    }
-
-    /**
-     * Reverts to the old frame formatting, which included two newlines between the message body
-     * and the end-of-frame marker.
-     * <p>
-     * Legacy: Body\n\n^@
-     * <p>
-     * Default: Body^@
-     *
-     * @param legacyWhitespace whether to append an extra two newlines
-     * @see <a href="http://stomp.github.io/stomp-specification-1.2.html#STOMP_Frames">The STOMP spec</a>
-     */
-    public void setLegacyWhitespace(boolean legacyWhitespace) {
-        this.legacyWhitespace = legacyWhitespace;
-    }
-
-    /**
-     * Set the wildcard or other matcher for Topic subscription.
-     * <p>
-     * Right now, the only options are simple, rmq supported.
-     * But you can write you own matcher by implementing {@link PathMatcher}
-     * <p>
-     * When set to {@link ua.naiksoftware.stomp.pathmatcher.RabbitPathMatcher}, topic subscription allows for RMQ-style wildcards.
-     * <p>
-     *
-     * @param pathMatcher Set to {@link SimplePathMatcher} by default
-     */
-    public void setPathMatcher(PathMatcher pathMatcher) {
-        this.pathMatcher = pathMatcher;
     }
 
     private Completable subscribePath(String destinationPath, @Nullable List<StompHeader> headerList) {
@@ -314,6 +290,11 @@ public class StompClient {
 
         Log.d(TAG, "Unsubscribe path: " + dest + " id: " + topicId);
 
+        if (forceClose) {
+            Log.d(TAG, "Force close, skip sending Unsubscribe frame to " + dest);
+            return Completable.complete();
+        }
+
         if (!isConnected) {
             Log.d(TAG, "Not connected, skip sending Unsubscribe frame to " + dest);
             return Completable.complete();
@@ -323,11 +304,41 @@ public class StompClient {
                 Collections.singletonList(new StompHeader(StompHeader.ID, topicId)), null));
     }
 
+    /**
+     * Set the wildcard or other matcher for Topic subscription.
+     * <p>
+     * Right now, the only options are simple, rmq supported.
+     * But you can write you own matcher by implementing {@link PathMatcher}
+     * <p>
+     * When set to {@link ua.naiksoftware.stomp.pathmatcher.RabbitPathMatcher}, topic subscription allows for RMQ-style wildcards.
+     * <p>
+     *
+     * @param pathMatcher Set to {@link SimplePathMatcher} by default
+     */
+    public void setPathMatcher(PathMatcher pathMatcher) {
+        this.pathMatcher = pathMatcher;
+    }
+
     public boolean isConnected() {
         return isConnected;
     }
 
     public boolean isConnecting() {
         return isConnecting;
+    }
+
+    /**
+     * Reverts to the old frame formatting, which included two newlines between the message body
+     * and the end-of-frame marker.
+     * <p>
+     * Legacy: Body\n\n^@
+     * <p>
+     * Default: Body^@
+     *
+     * @param legacyWhitespace whether to append an extra two newlines
+     * @see <a href="http://stomp.github.io/stomp-specification-1.2.html#STOMP_Frames">The STOMP spec</a>
+     */
+    public void setLegacyWhitespace(boolean legacyWhitespace) {
+        this.legacyWhitespace = legacyWhitespace;
     }
 }

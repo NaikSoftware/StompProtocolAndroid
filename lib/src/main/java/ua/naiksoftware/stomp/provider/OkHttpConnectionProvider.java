@@ -44,7 +44,7 @@ public class OkHttpConnectionProvider extends AbstractConnectionProvider {
     }
 
     @Override
-    void createWebSocketConnection() {
+    protected void createWebSocketConnection() {
         Request.Builder requestBuilder = new Request.Builder()
                 .url(mUri);
 
@@ -96,13 +96,13 @@ public class OkHttpConnectionProvider extends AbstractConnectionProvider {
     }
 
     @Override
-    void rawSend(String stompMessage) {
+    protected void rawSend(String stompMessage) {
         openSocket.send(stompMessage);
     }
 
     @Nullable
     @Override
-    Object getSocket() {
+    protected Object getSocket() {
         return openSocket;
     }
 

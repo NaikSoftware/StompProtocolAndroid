@@ -58,7 +58,7 @@ public class WebSocketsConnectionProvider extends AbstractConnectionProvider {
     }
 
     @Override
-    void createWebSocketConnection() {
+    protected void createWebSocketConnection() {
         if (haveConnection)
             throw new IllegalStateException("Already have connection to web socket");
 
@@ -122,12 +122,12 @@ public class WebSocketsConnectionProvider extends AbstractConnectionProvider {
     }
 
     @Override
-    void rawSend(String stompMessage) {
+    protected void rawSend(String stompMessage) {
         mWebSocketClient.send(stompMessage);
     }
 
     @Override
-    Object getSocket() {
+    protected Object getSocket() {
         return mWebSocketClient;
     }
 }
