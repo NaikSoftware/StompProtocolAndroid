@@ -36,28 +36,30 @@ public class StompClient {
     public static final String SUPPORTED_VERSIONS = "1.1,1.2";
     public static final String DEFAULT_ACK = "auto";
 
-    private final String tag = StompClient.class.getSimpleName();
-    private final ConnectionProvider mConnectionProvider;
-    private ConcurrentHashMap<String, String> mTopics;
-    private boolean mConnected;
+    private final ConnectionProvider connectionProvider;
+    private ConcurrentHashMap<String, String> topics;
+    private boolean isConnected;
     private boolean isConnecting;
+    private boolean isDisconnecting;
     private boolean legacyWhitespace;
 
-    private PublishSubject<StompMessage> mMessageStream;
-    private ConcurrentHashMap<String, Flowable<StompMessage>> mStreamMap;
-    private final BehaviorSubject<Boolean> mConnectionStream;
+    private PublishSubject<StompMessage> messageStream;
+    private ConcurrentHashMap<String, Flowable<StompMessage>> streamMap;
+    private final BehaviorSubject<Boolean> connectionStream;
     private PathMatcher pathMatcher;
-    private Disposable mLifecycleDisposable;
-    private Disposable mMessagesDisposable;
-    private List<StompHeader> mHeaders;
+    private Disposable lifecycleDisposable;
+    private Disposable messagesDisposable;
+    private PublishSubject<LifecycleEvent> lifecyclePublishSubject;
+    private List<StompHeader> headers;
 
     private int serverHeartbeat = 0;
     private int clientHeartbeat = 0;
 
     public StompClient(ConnectionProvider connectionProvider) {
-        mConnectionProvider = connectionProvider;
-        mStreamMap = new ConcurrentHashMap<>();
-        mConnectionStream = BehaviorSubject.createDefault(false);
+        this.connectionProvider = connectionProvider;
+        streamMap = new ConcurrentHashMap<>();
+        connectionStream = BehaviorSubject.createDefault(false);
+        lifecyclePublishSubject = PublishSubject.create();
         pathMatcher = new SimplePathMatcher();
     }
 
@@ -69,7 +71,7 @@ public class StompClient {
      * @param ms heartbeat time in milliseconds
      */
     public StompClient withServerHeartbeat(int ms) {
-        mConnectionProvider.setServerHeartbeat(ms);
+        connectionProvider.setServerHeartbeat(ms);
         this.serverHeartbeat = ms;
         return this;
     }
@@ -82,7 +84,7 @@ public class StompClient {
      * @param ms heartbeat time in milliseconds
      */
     public StompClient withClientHeartbeat(int ms) {
-        mConnectionProvider.setClientHeartbeat(ms);
+        connectionProvider.setClientHeartbeat(ms);
         this.clientHeartbeat = ms;
         return this;
     }
@@ -103,13 +105,13 @@ public class StompClient {
 
         Log.d(TAG, "Connect");
 
-        mHeaders = _headers;
+        headers = _headers;
 
-        if (mConnected) {
+        if (isConnected) {
             Log.d(TAG, "Already connected, ignore");
             return;
         }
-        mLifecycleDisposable = mConnectionProvider.lifecycle()
+        lifecycleDisposable = connectionProvider.lifecycle()
                 .subscribe(lifecycleEvent -> {
                     switch (lifecycleEvent.getType()) {
                         case OPENED:
@@ -117,57 +119,55 @@ public class StompClient {
                             headers.add(new StompHeader(StompHeader.VERSION, SUPPORTED_VERSIONS));
                             headers.add(new StompHeader(StompHeader.HEART_BEAT, clientHeartbeat + "," + serverHeartbeat));
                             if (_headers != null) headers.addAll(_headers);
-                            mConnectionProvider.send(new StompMessage(StompCommand.CONNECT, headers, null).compile(legacyWhitespace))
-                                    .subscribe();
+                            connectionProvider.send(new StompMessage(StompCommand.CONNECT, headers, null).compile(legacyWhitespace))
+                                    .subscribe(() -> {
+                                        lifecyclePublishSubject.onNext(lifecycleEvent);
+                                    });
                             break;
 
                         case CLOSED:
                             Log.d(TAG, "Socket closed");
-                            disconnect();
+                            if (!isDisconnecting) {
+                                disconnect();
+                            }
+                            isConnecting = false;
+                            setConnected(false);
                             break;
 
                         case ERROR:
                             Log.d(TAG, "Socket closed with error");
+                            lifecyclePublishSubject.onNext(lifecycleEvent);
                             break;
 
                         case FAILED_SERVER_HEARTBEAT:
-                            Log.d(TAG, "Server failed to send heart-beat in time.");
+                            Log.d(TAG, "Server failed to send heart-beat in time");
+                            lifecyclePublishSubject.onNext(lifecycleEvent);
                             break;
 
                     }
                 });
 
         isConnecting = true;
-        mMessagesDisposable = mConnectionProvider.messages()
+        messagesDisposable = connectionProvider.messages()
                 .map(StompMessage::from)
                 .doOnNext(getMessageStream()::onNext)
                 .filter(msg -> msg.getStompCommand().equals(StompCommand.CONNECTED))
                 .subscribe(stompMessage -> {
-                    setConnected(true);
                     isConnecting = false;
+                    setConnected(true);
                 });
     }
 
     private PublishSubject<StompMessage> getMessageStream() {
-        if (mMessageStream == null || mMessageStream.hasComplete()) {
-            mMessageStream = PublishSubject.create();
+        if (messageStream == null || messageStream.hasComplete()) {
+            messageStream = PublishSubject.create();
         }
-        return mMessageStream;
+        return messageStream;
     }
 
     private void setConnected(boolean connected) {
-        mConnected = connected;
-        mConnectionStream.onNext(mConnected);
-    }
-
-    /**
-     * Disconnect from server, and then reconnect with the last-used headers
-     */
-    @SuppressLint("CheckResult")
-    public void reconnect() {
-        disconnectCompletable()
-                .subscribe(() -> connect(mHeaders),
-                        e -> Log.e(tag, "Disconnect error", e));
+        isConnected = connected;
+        connectionStream.onNext(isConnected);
     }
 
     public Completable send(String destination) {
@@ -182,9 +182,9 @@ public class StompClient {
     }
 
     public Completable send(@NonNull StompMessage stompMessage) {
-        Completable completable = mConnectionProvider.send(stompMessage.compile(legacyWhitespace))
-                .doOnError(t -> t.printStackTrace());
-        CompletableSource connectionComplete = mConnectionStream
+        Completable completable = connectionProvider.send(stompMessage.compile(legacyWhitespace))
+                .doOnError(Throwable::printStackTrace);
+        CompletableSource connectionComplete = connectionStream
                 .filter(isConnected -> isConnected)
                 .firstOrError().ignoreElement();
         return completable
@@ -192,31 +192,46 @@ public class StompClient {
     }
 
     public Flowable<LifecycleEvent> lifecycle() {
-        return mConnectionProvider.lifecycle().toFlowable(BackpressureStrategy.BUFFER);
+        return lifecyclePublishSubject.toFlowable(BackpressureStrategy.BUFFER);
     }
 
+    /**
+     * Disconnect from server, and then reconnect with the last-used headers
+     */
+    @SuppressLint("CheckResult")
+    public void reconnect() {
+        disconnectCompletable()
+                .subscribe(() -> connect(headers),
+                        e -> Log.e(TAG, "Disconnect error", e));
+    }
+
+    @SuppressLint("CheckResult")
     public void disconnect() {
-        if (!mConnected) {
-            Log.d(TAG, "Skip disconnect, already not connected");
-            return;
-        }
-        disconnectCompletable().subscribe(() -> {}, e -> Log.e(tag, "Disconnect error", e));
+        disconnectCompletable().subscribe(() -> { }, e -> Log.e(TAG, "Disconnect error", e));
     }
 
     public Completable disconnectCompletable() {
-        return mConnectionProvider.disconnect()
-                .doOnComplete(() -> {
-                    setConnected(false);
-                    isConnecting = false;
-                    if (mLifecycleDisposable != null) {
-                        mLifecycleDisposable.dispose();
-                    }
-                    if (mMessagesDisposable != null) {
-                        mMessagesDisposable.dispose();
-                    }
-                    if (mMessageStream != null && !mMessageStream.hasComplete()) {
-                        mMessageStream.onComplete();
-                    }
+        if (!isConnected && !isConnecting) {
+            Log.d(TAG, "Skip disconnect, already not connected");
+            return Completable.complete();
+        }
+
+        if (lifecycleDisposable != null) {
+            lifecycleDisposable.dispose();
+        }
+        if (messagesDisposable != null) {
+            messagesDisposable.dispose();
+        }
+        if (messageStream != null && !messageStream.hasComplete()) {
+            messageStream.onComplete();
+        }
+
+        isDisconnecting = true;
+        return connectionProvider.disconnect()
+                .doFinally(() -> {
+                    isDisconnecting = false;
+                    Log.d(TAG, "Stomp disconnected");
+                    lifecyclePublishSubject.onNext(new LifecycleEvent(LifecycleEvent.Type.CLOSED));
                 });
     }
 
@@ -227,8 +242,8 @@ public class StompClient {
     public Flowable<StompMessage> topic(@NonNull String destPath, List<StompHeader> headerList) {
         if (destPath == null)
             return Flowable.error(new IllegalArgumentException("Topic path cannot be null"));
-        else if (!mStreamMap.containsKey(destPath))
-            mStreamMap.put(destPath,
+        else if (!streamMap.containsKey(destPath))
+            streamMap.put(destPath,
                     getMessageStream()
                             .filter(msg -> pathMatcher.matches(destPath, msg))
                             .toFlowable(BackpressureStrategy.BUFFER)
@@ -236,7 +251,7 @@ public class StompClient {
                             .doFinally(() -> unsubscribePath(destPath).subscribe())
                             .share()
             );
-        return mStreamMap.get(destPath);
+        return streamMap.get(destPath);
     }
 
     /**
@@ -272,15 +287,15 @@ public class StompClient {
     private Completable subscribePath(String destinationPath, @Nullable List<StompHeader> headerList) {
         String topicId = UUID.randomUUID().toString();
 
-        if (mTopics == null) mTopics = new ConcurrentHashMap<>();
+        if (topics == null) topics = new ConcurrentHashMap<>();
 
         // Only continue if we don't already have a subscription to the topic
-        if (mTopics.containsKey(destinationPath)) {
+        if (topics.containsKey(destinationPath)) {
             Log.d(TAG, "Attempted to subscribe to already-subscribed path!");
             return Completable.complete();
         }
 
-        mTopics.put(destinationPath, topicId);
+        topics.put(destinationPath, topicId);
         List<StompHeader> headers = new ArrayList<>();
         headers.add(new StompHeader(StompHeader.ID, topicId));
         headers.add(new StompHeader(StompHeader.DESTINATION, destinationPath));
@@ -292,14 +307,14 @@ public class StompClient {
 
 
     private Completable unsubscribePath(String dest) {
-        mStreamMap.remove(dest);
+        streamMap.remove(dest);
 
-        String topicId = mTopics.get(dest);
-        mTopics.remove(dest);
+        String topicId = topics.get(dest);
+        topics.remove(dest);
 
         Log.d(TAG, "Unsubscribe path: " + dest + " id: " + topicId);
 
-        if (!mConnected) {
+        if (!isConnected) {
             Log.d(TAG, "Not connected, skip sending Unsubscribe frame to " + dest);
             return Completable.complete();
         }
@@ -309,7 +324,7 @@ public class StompClient {
     }
 
     public boolean isConnected() {
-        return mConnected;
+        return isConnected;
     }
 
     public boolean isConnecting() {

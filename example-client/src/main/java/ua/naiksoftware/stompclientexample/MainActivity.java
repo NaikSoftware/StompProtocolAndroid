@@ -114,6 +114,7 @@ public class MainActivity extends AppCompatActivity {
     }
 
     public void sendEchoViaStomp(View v) {
+        if (!mStompClient.isConnected()) return;
         compositeDisposable.add(mStompClient.send("/topic/hello-msg-mapping", "Echo STOMP " + mTimeFormat.format(new Date()))
                 .compose(applySchedulers())
                 .subscribe(() -> {
