@@ -174,7 +174,11 @@ public class StompClient {
     public Completable send(@NonNull StompMessage stompMessage) {
         Completable completable = connectionProvider.send(stompMessage.compile(legacyWhitespace));
         CompletableSource connectionComplete = getConnectionStream()
-                .filter(isConnected -> isConnected)
+//                .filter(isConnected -> isConnected)
+                .filter(isConnected -> {
+                    Log.d(TAG, "Send " + stompMessage + "filtered " + isConnected);
+                    return isConnected;
+                })
                 .firstElement().ignoreElement();
         return completable
                 .startWith(connectionComplete);
