@@ -40,7 +40,7 @@ public class StompClient {
     private ConcurrentHashMap<String, String> topics;
     private boolean legacyWhitespace;
 
-    private final PublishSubject<StompMessage> messageStream;
+    private PublishSubject<StompMessage> messageStream;
     private BehaviorSubject<Boolean> connectionStream;
     private ConcurrentHashMap<String, Flowable<StompMessage>> streamMap;
     private PathMatcher pathMatcher;
@@ -53,7 +53,6 @@ public class StompClient {
     public StompClient(ConnectionProvider connectionProvider) {
         this.connectionProvider = connectionProvider;
         streamMap = new ConcurrentHashMap<>();
-        messageStream = PublishSubject.create();
         lifecyclePublishSubject = PublishSubject.create();
         pathMatcher = new SimplePathMatcher();
         heartBeatTask = new HeartBeatTask(this::sendHeartBeat, () -> {
@@ -126,7 +125,6 @@ public class StompClient {
 
                         case CLOSED:
                             Log.d(TAG, "Socket closed");
-                            getConnectionStream().onNext(false);
                             disconnect();
                             break;
 
@@ -140,18 +138,25 @@ public class StompClient {
         messagesDisposable = connectionProvider.messages()
                 .map(StompMessage::from)
                 .filter(heartBeatTask::consumeHeartBeat)
-                .doOnNext(messageStream::onNext)
+                .doOnNext(getMessageStream()::onNext)
                 .filter(msg -> msg.getStompCommand().equals(StompCommand.CONNECTED))
                 .subscribe(stompMessage -> {
                     getConnectionStream().onNext(true);
                 });
     }
 
-    private BehaviorSubject<Boolean> getConnectionStream() {
+    synchronized private BehaviorSubject<Boolean> getConnectionStream() {
         if (connectionStream == null || connectionStream.hasComplete()) {
             connectionStream = BehaviorSubject.createDefault(false);
         }
         return connectionStream;
+    }
+
+    synchronized private PublishSubject<StompMessage> getMessageStream() {
+        if (messageStream == null || messageStream.hasComplete()) {
+            messageStream = PublishSubject.create();
+        }
+        return messageStream;
     }
 
     public Completable send(String destination) {
@@ -179,9 +184,10 @@ public class StompClient {
         Completable completable = connectionProvider.send(pingMessage);
         CompletableSource connectionComplete = getConnectionStream()
                 .filter(isConnected -> isConnected)
-                .firstOrError().ignoreElement();
+                .firstElement().ignoreElement();
         completable.startWith(connectionComplete)
-                .subscribe(() -> {}, Throwable::printStackTrace);
+                .onErrorComplete()
+                .subscribe();
     }
 
     public Flowable<LifecycleEvent> lifecycle() {
@@ -200,7 +206,8 @@ public class StompClient {
 
     @SuppressLint("CheckResult")
     public void disconnect() {
-        disconnectCompletable().subscribe(() -> { }, e -> Log.e(TAG, "Disconnect error", e));
+        disconnectCompletable().subscribe(() -> {
+        }, e -> Log.e(TAG, "Disconnect error", e));
     }
 
     public Completable disconnectCompletable() {
@@ -218,6 +225,7 @@ public class StompClient {
                 .doFinally(() -> {
                     Log.d(TAG, "Stomp disconnected");
                     getConnectionStream().onComplete();
+                    getMessageStream().onComplete();
                     lifecyclePublishSubject.onNext(new LifecycleEvent(LifecycleEvent.Type.CLOSED));
                 });
     }
@@ -231,12 +239,12 @@ public class StompClient {
             return Flowable.error(new IllegalArgumentException("Topic path cannot be null"));
         else if (!streamMap.containsKey(destPath))
             streamMap.put(destPath,
-                    messageStream
+                    subscribePath(destPath, headerList).andThen(
+                    getMessageStream()
                             .filter(msg -> pathMatcher.matches(destPath, msg))
                             .toFlowable(BackpressureStrategy.BUFFER)
-                            .doOnSubscribe(disposable -> subscribePath(destPath, headerList).subscribe())
                             .doFinally(() -> unsubscribePath(destPath).subscribe())
-                            .share()
+                            .share())
             );
         return streamMap.get(destPath);
     }
@@ -272,7 +280,7 @@ public class StompClient {
         Log.d(TAG, "Unsubscribe path: " + dest + " id: " + topicId);
 
         return send(new StompMessage(StompCommand.UNSUBSCRIBE,
-                Collections.singletonList(new StompHeader(StompHeader.ID, topicId)), null));
+                Collections.singletonList(new StompHeader(StompHeader.ID, topicId)), null)).onErrorComplete();
     }
 
     /**
