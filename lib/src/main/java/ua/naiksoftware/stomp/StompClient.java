@@ -174,11 +174,7 @@ public class StompClient {
     public Completable send(@NonNull StompMessage stompMessage) {
         Completable completable = connectionProvider.send(stompMessage.compile(legacyWhitespace));
         CompletableSource connectionComplete = getConnectionStream()
-//                .filter(isConnected -> isConnected)
-                .filter(isConnected -> {
-                    Log.d(TAG, "Send " + stompMessage + "filtered " + isConnected);
-                    return isConnected;
-                })
+                .filter(isConnected -> isConnected)
                 .firstElement().ignoreElement();
         return completable
                 .startWith(connectionComplete);
@@ -248,8 +244,7 @@ public class StompClient {
                     getMessageStream()
                             .filter(msg -> pathMatcher.matches(destPath, msg))
                             .toFlowable(BackpressureStrategy.BUFFER)
-                            .doFinally(() -> unsubscribePath(destPath).subscribe())
-                            .share())
+                            .share()).doFinally(() -> unsubscribePath(destPath).subscribe())
             );
         return streamMap.get(destPath);
     }
