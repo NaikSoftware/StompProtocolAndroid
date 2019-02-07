@@ -21,6 +21,9 @@ public class HeartBeatTask {
     private int serverHeartbeat = 0;
     private int clientHeartbeat = 0;
 
+    private int serverHeartbeatNew = 0;
+    private int clientHeartbeatNew = 0;
+
     private transient long lastServerHeartBeat = 0;
 
     private transient Disposable clientSendHeartBeatTask;
@@ -35,19 +38,19 @@ public class HeartBeatTask {
     }
 
     public void setServerHeartbeat(int serverHeartbeat) {
-        this.serverHeartbeat = serverHeartbeat;
+        this.serverHeartbeatNew = serverHeartbeat;
     }
 
     public void setClientHeartbeat(int clientHeartbeat) {
-        this.clientHeartbeat = clientHeartbeat;
+        this.clientHeartbeatNew = clientHeartbeat;
     }
 
     public int getServerHeartbeat() {
-        return serverHeartbeat;
+        return serverHeartbeatNew;
     }
 
     public int getClientHeartbeat() {
-        return clientHeartbeat;
+        return clientHeartbeatNew;
     }
 
     public boolean consumeHeartBeat(StompMessage message) {
@@ -96,13 +99,13 @@ public class HeartBeatTask {
         if (heartBeatHeader != null) {
             // The heart-beat header is OPTIONAL
             final String[] heartbeats = heartBeatHeader.split(",");
-            if (clientHeartbeat > 0) {
+            if (clientHeartbeatNew > 0) {
                 //there will be heart-beats every MAX(<cx>,<sy>) milliseconds
-                clientHeartbeat = Math.max(clientHeartbeat, Integer.parseInt(heartbeats[1]));
+                clientHeartbeat = Math.max(clientHeartbeatNew, Integer.parseInt(heartbeats[1]));
             }
-            if (serverHeartbeat > 0) {
+            if (serverHeartbeatNew > 0) {
                 //there will be heart-beats every MAX(<cx>,<sy>) milliseconds
-                serverHeartbeat = Math.max(serverHeartbeat, Integer.parseInt(heartbeats[0]));
+                serverHeartbeat = Math.max(serverHeartbeatNew, Integer.parseInt(heartbeats[0]));
             }
         }
         if (clientHeartbeat > 0 || serverHeartbeat > 0) {

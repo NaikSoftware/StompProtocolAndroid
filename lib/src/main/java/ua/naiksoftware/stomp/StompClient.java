@@ -119,6 +119,7 @@ public class StompClient {
 
                             connectionProvider.send(new StompMessage(StompCommand.CONNECT, headers, null).compile(legacyWhitespace))
                                     .subscribe(() -> {
+                                        Log.d(TAG, "Publish open");
                                         lifecyclePublishSubject.onNext(lifecycleEvent);
                                     });
                             break;
