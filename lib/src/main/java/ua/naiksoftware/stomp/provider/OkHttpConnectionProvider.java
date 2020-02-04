@@ -25,6 +25,7 @@ public class OkHttpConnectionProvider extends AbstractConnectionProvider {
     @NonNull
     private final Map<String, String> mConnectHttpHeaders;
     private final OkHttpClient mOkHttpClient;
+    private static final int MAX_WEB_SOCKET_CHUNK_SIZE =  8 * 1024;
 
     @Nullable
     private WebSocket openSocket;
@@ -96,8 +97,18 @@ public class OkHttpConnectionProvider extends AbstractConnectionProvider {
     }
 
     @Override
-    protected void rawSend(String stompMessage) {
-        openSocket.send(stompMessage);
+    protected synchronized void rawSend(String stompMessage) {
+        while (stompMessage.length() > 0) {
+            String chunk = "";
+            if (stompMessage.length() > MAX_WEB_SOCKET_CHUNK_SIZE) {
+                chunk = stompMessage.substring(0, MAX_WEB_SOCKET_CHUNK_SIZE);
+                stompMessage = stompMessage.substring(MAX_WEB_SOCKET_CHUNK_SIZE);
+            } else {
+                chunk = stompMessage;
+                stompMessage = "";
+            }
+            openSocket.send(chunk);
+        }
     }
 
     @Nullable
