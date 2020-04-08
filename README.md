@@ -1,6 +1,6 @@
 # STOMP protocol via WebSocket for Android
 
-[![Release](https://jitpack.io/v/NaikSoftware/StompProtocolAndroid.svg)](https://jitpack.io/#NaikSoftware/StompProtocolAndroid)
+[![Release](https://jitpack.io/v/coyoapp/StompProtocolAndroid.svg)](https://jitpack.io/#coyoapp/StompProtocolAndroid)
 
 ## Overview
 
@@ -16,7 +16,7 @@ repositories {
     maven { url "https://jitpack.io" }
 }
 dependencies {
-    implementation 'com.github.NaikSoftware:StompProtocolAndroid:{latest version}'
+    implementation 'com.github.coyoapp:StompProtocolAndroid:{latest version}'
 }
 ```
 
@@ -85,7 +85,7 @@ Check out the full example server https://github.com/NaikSoftware/stomp-protocol
 
 ```
 
-See the full example https://github.com/NaikSoftware/StompProtocolAndroid/tree/master/example-client
+See the full example https://github.com/coyoapp/StompProtocolAndroid/tree/master/example-client
 
 Method `Stomp.over` consume class for create connection as first parameter.
 You must provide dependency for lib and pass class.
