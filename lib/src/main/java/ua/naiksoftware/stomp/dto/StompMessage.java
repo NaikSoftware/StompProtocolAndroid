@@ -2,10 +2,11 @@ package ua.naiksoftware.stomp.dto;
 
 import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
-
+import android.util.Log;
 import java.io.StringReader;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.NoSuchElementException;
 import java.util.Scanner;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -16,6 +17,8 @@ import java.util.regex.Pattern;
 public class StompMessage {
 
     public static final String TERMINATE_MESSAGE_SYMBOL = "\u0000";
+
+    private static final String TAG = StompMessage.class.getSimpleName();
 
     private static final Pattern PATTERN_HEADER = Pattern.compile("([^:\\s]+)\\s*:\\s*([^:\\s]+)");
 
@@ -86,7 +89,11 @@ public class StompMessage {
             headers.add(new StompHeader(matcher.group(1), matcher.group(2)));
         }
 
-        reader.skip("\n\n");
+        try {
+            reader.skip("\n\n");
+        } catch (NoSuchElementException e) {
+            Log.w(TAG, e.getLocalizedMessage(), e);
+        }
 
         reader.useDelimiter(TERMINATE_MESSAGE_SYMBOL);
         String payload = reader.hasNext() ? reader.next() : null;
