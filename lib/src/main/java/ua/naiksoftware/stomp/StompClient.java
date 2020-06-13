@@ -143,6 +143,8 @@ public class StompClient {
                 .filter(msg -> msg.getStompCommand().equals(StompCommand.CONNECTED))
                 .subscribe(stompMessage -> {
                     getConnectionStream().onNext(true);
+                }, onError -> {
+                    Log.e(TAG, "Error parsing message", onError);
                 });
     }
 
