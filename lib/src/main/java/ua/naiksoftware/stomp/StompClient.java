@@ -4,13 +4,6 @@ import android.annotation.SuppressLint;
 import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
 import android.util.Log;
-
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
-import java.util.UUID;
-import java.util.concurrent.ConcurrentHashMap;
-
 import io.reactivex.BackpressureStrategy;
 import io.reactivex.Completable;
 import io.reactivex.CompletableSource;
@@ -18,13 +11,18 @@ import io.reactivex.Flowable;
 import io.reactivex.disposables.Disposable;
 import io.reactivex.subjects.BehaviorSubject;
 import io.reactivex.subjects.PublishSubject;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
+import ua.naiksoftware.stomp.dto.LifecycleEvent;
 import ua.naiksoftware.stomp.dto.StompCommand;
+import ua.naiksoftware.stomp.dto.StompHeader;
 import ua.naiksoftware.stomp.dto.StompMessage;
 import ua.naiksoftware.stomp.pathmatcher.PathMatcher;
 import ua.naiksoftware.stomp.pathmatcher.SimplePathMatcher;
 import ua.naiksoftware.stomp.provider.ConnectionProvider;
-import ua.naiksoftware.stomp.dto.LifecycleEvent;
-import ua.naiksoftware.stomp.dto.StompHeader;
 
 /**
  * Created by naik on 05.05.16.
@@ -37,12 +35,12 @@ public class StompClient {
     public static final String DEFAULT_ACK = "auto";
 
     private final ConnectionProvider connectionProvider;
-    private ConcurrentHashMap<String, String> topics;
+    private ConcurrentHashMap<TopicKey, String> topics;
     private boolean legacyWhitespace;
 
     private PublishSubject<StompMessage> messageStream;
     private BehaviorSubject<Boolean> connectionStream;
-    private ConcurrentHashMap<String, Flowable<StompMessage>> streamMap;
+    private ConcurrentHashMap<TopicKey, Flowable<StompMessage>> streamMap;
     private PathMatcher pathMatcher;
     private Disposable lifecycleDisposable;
     private Disposable messagesDisposable;
@@ -236,48 +234,49 @@ public class StompClient {
     }
 
     public Flowable<StompMessage> topic(@NonNull String destPath, List<StompHeader> headerList) {
+        TopicKey topicKey = new TopicKey(destPath, headerList);
         if (destPath == null)
             return Flowable.error(new IllegalArgumentException("Topic path cannot be null"));
-        else if (!streamMap.containsKey(destPath))
-            streamMap.put(destPath,
-                    subscribePath(destPath, headerList).andThen(
-                    getMessageStream()
-                            .filter(msg -> pathMatcher.matches(destPath, msg))
-                            .toFlowable(BackpressureStrategy.BUFFER)
-                            .share()).doFinally(() -> unsubscribePath(destPath).subscribe())
+        else if (!streamMap.containsKey(topicKey))
+            streamMap.put(topicKey,
+                    subscribePath(topicKey).andThen(
+                            getMessageStream()
+                                    .filter(msg -> pathMatcher.matches(destPath, msg))
+                                    .toFlowable(BackpressureStrategy.BUFFER)
+                                    .share()).doFinally(() -> unsubscribePath(topicKey).subscribe())
             );
-        return streamMap.get(destPath);
+        return streamMap.get(topicKey);
     }
 
-    private Completable subscribePath(String destinationPath, @Nullable List<StompHeader> headerList) {
+    private Completable subscribePath(TopicKey topicKey) {
         String topicId = UUID.randomUUID().toString();
 
         if (topics == null) topics = new ConcurrentHashMap<>();
 
         // Only continue if we don't already have a subscription to the topic
-        if (topics.containsKey(destinationPath)) {
+        if (topics.containsKey(topicKey)) {
             Log.d(TAG, "Attempted to subscribe to already-subscribed path!");
             return Completable.complete();
         }
 
-        topics.put(destinationPath, topicId);
+        topics.put(topicKey, topicId);
         List<StompHeader> headers = new ArrayList<>();
         headers.add(new StompHeader(StompHeader.ID, topicId));
-        headers.add(new StompHeader(StompHeader.DESTINATION, destinationPath));
+        headers.add(new StompHeader(StompHeader.DESTINATION, topicKey.destination));
         headers.add(new StompHeader(StompHeader.ACK, DEFAULT_ACK));
-        if (headerList != null) headers.addAll(headerList);
+        if (topicKey.headerList != null) headers.addAll(topicKey.headerList);
         return send(new StompMessage(StompCommand.SUBSCRIBE,
                 headers, null));
     }
 
 
-    private Completable unsubscribePath(String dest) {
-        streamMap.remove(dest);
+    private Completable unsubscribePath(TopicKey topicKey) {
+        streamMap.remove(topicKey);
 
-        String topicId = topics.get(dest);
-        topics.remove(dest);
+        String topicId = topics.get(topicKey);
+        topics.remove(topicKey);
 
-        Log.d(TAG, "Unsubscribe path: " + dest + " id: " + topicId);
+        Log.d(TAG, "Unsubscribe path: " + topicKey.destination + " id: " + topicId);
 
         return send(new StompMessage(StompCommand.UNSUBSCRIBE,
                 Collections.singletonList(new StompHeader(StompHeader.ID, topicId)), null)).onErrorComplete();
