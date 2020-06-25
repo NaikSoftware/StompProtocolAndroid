@@ -318,4 +318,11 @@ public class StompClient {
     public void setLegacyWhitespace(boolean legacyWhitespace) {
         this.legacyWhitespace = legacyWhitespace;
     }
+    
+    /** returns the to topic (subscription id) corresponding to a given destination  
+     * @param dest the destination
+     * @return the topic (subscription id) or null if no topic corresponds to the destination */
+    public String getTopicId(String dest) {
+        return topics.get(dest);
+    }
 }
