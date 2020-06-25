@@ -242,11 +242,12 @@ public class StompClient {
             return Flowable.error(new IllegalArgumentException("Topic path cannot be null"));
         else if (!streamMap.containsKey(destPath))
             streamMap.put(destPath,
-                    subscribePath(destPath, headerList).andThen(
+                    Completable.defer(() -> subscribePath(destPath, headerList)).andThen(
                     getMessageStream()
                             .filter(msg -> pathMatcher.matches(destPath, msg))
                             .toFlowable(BackpressureStrategy.BUFFER)
-                            .share()).doFinally(() -> unsubscribePath(destPath).subscribe())
+                            .doFinally(() -> unsubscribePath(destPath).subscribe())
+                            .share())
             );
         return streamMap.get(destPath);
     }
@@ -269,7 +270,8 @@ public class StompClient {
         headers.add(new StompHeader(StompHeader.ACK, DEFAULT_ACK));
         if (headerList != null) headers.addAll(headerList);
         return send(new StompMessage(StompCommand.SUBSCRIBE,
-                headers, null));
+                headers, null))
+                .doOnError(throwable -> unsubscribePath(destinationPath).subscribe());
     }
 
 
@@ -277,6 +279,11 @@ public class StompClient {
         streamMap.remove(dest);
 
         String topicId = topics.get(dest);
+
+        if (topicId == null) {
+            return Completable.complete();
+        }
+
         topics.remove(dest);
 
         Log.d(TAG, "Unsubscribe path: " + dest + " id: " + topicId);
