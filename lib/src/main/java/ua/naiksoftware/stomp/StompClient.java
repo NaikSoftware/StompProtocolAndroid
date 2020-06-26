@@ -141,6 +141,8 @@ public class StompClient {
                 .filter(msg -> msg.getStompCommand().equals(StompCommand.CONNECTED))
                 .subscribe(stompMessage -> {
                     getConnectionStream().onNext(true);
+                }, onError -> {
+                    Log.e(TAG, "Error parsing message", onError);
                 });
     }
 
@@ -239,11 +241,12 @@ public class StompClient {
             return Flowable.error(new IllegalArgumentException("Topic path cannot be null"));
         else if (!streamMap.containsKey(topicKey))
             streamMap.put(topicKey,
-                    subscribePath(topicKey).andThen(
+                    Completable.defer(() -> subscribePath(topicKey)).andThen(
                             getMessageStream()
                                     .filter(msg -> pathMatcher.matches(destPath, msg))
                                     .toFlowable(BackpressureStrategy.BUFFER)
-                                    .share()).doFinally(() -> unsubscribePath(topicKey).subscribe())
+                                    .doFinally(() -> unsubscribePath(topicKey).subscribe())
+                                    .share())
             );
         return streamMap.get(topicKey);
     }
@@ -266,7 +269,8 @@ public class StompClient {
         headers.add(new StompHeader(StompHeader.ACK, DEFAULT_ACK));
         if (topicKey.headerList != null) headers.addAll(topicKey.headerList);
         return send(new StompMessage(StompCommand.SUBSCRIBE,
-                headers, null));
+                headers, null))
+                .doOnError(throwable -> unsubscribePath(topicKey).subscribe());
     }
 
 
@@ -274,6 +278,11 @@ public class StompClient {
         streamMap.remove(topicKey);
 
         String topicId = topics.get(topicKey);
+
+        if (topicId == null) {
+            return Completable.complete();
+        }
+
         topics.remove(topicKey);
 
         Log.d(TAG, "Unsubscribe path: " + topicKey.destination + " id: " + topicId);
@@ -314,5 +323,15 @@ public class StompClient {
      */
     public void setLegacyWhitespace(boolean legacyWhitespace) {
         this.legacyWhitespace = legacyWhitespace;
+    }
+
+    /**
+     * returns the to topic (subscription id) corresponding to a given destination
+     *
+     * @param dest the destination
+     * @return the topic (subscription id) or null if no topic corresponds to the destination
+     */
+    public String getTopicId(String dest) {
+        return topics.get(dest);
     }
 }
