@@ -243,7 +243,7 @@ public class StompClient {
             streamMap.put(topicKey,
                     Completable.defer(() -> subscribePath(topicKey)).andThen(
                             getMessageStream()
-                                    .filter(msg -> pathMatcher.matches(destPath, msg))
+                                    .filter(msg -> pathMatcher.matches(topicKey, msg))
                                     .toFlowable(BackpressureStrategy.BUFFER)
                                     .doFinally(() -> unsubscribePath(topicKey).subscribe())
                                     .share())

@@ -4,8 +4,8 @@ import java.util.List;
 import ua.naiksoftware.stomp.dto.StompHeader;
 
 public final class TopicKey {
-    final String destination;
-    final List<StompHeader> headerList;
+    public final String destination;
+    public final List<StompHeader> headerList;
 
     public TopicKey(String destPath, List<StompHeader> headerList) {
         this.destination = destPath;

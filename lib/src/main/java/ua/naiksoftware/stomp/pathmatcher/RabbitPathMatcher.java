@@ -1,5 +1,6 @@
 package ua.naiksoftware.stomp.pathmatcher;
 
+import ua.naiksoftware.stomp.TopicKey;
 import ua.naiksoftware.stomp.dto.StompHeader;
 import ua.naiksoftware.stomp.dto.StompMessage;
 
@@ -12,14 +13,14 @@ public class RabbitPathMatcher implements PathMatcher {
      * See more info <a href="https://www.rabbitmq.com/tutorials/tutorial-five-java.html">here</a>.
      */
     @Override
-    public boolean matches(String path, StompMessage msg) {
+    public boolean matches(TopicKey topicKey, StompMessage msg) {
         String dest = msg.findHeader(StompHeader.DESTINATION);
         if (dest == null) return false;
 
         // for example string "lorem.ipsum.*.sit":
 
         // split it up into ["lorem", "ipsum", "*", "sit"]
-        String[] split = path.split("\\.");
+        String[] split = topicKey.destination.split("\\.");
         ArrayList<String> transformed = new ArrayList<>();
         // check for wildcards and replace with corresponding regex
         for (String s : split) {
