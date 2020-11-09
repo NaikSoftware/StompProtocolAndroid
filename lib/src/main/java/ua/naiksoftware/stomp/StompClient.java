@@ -126,6 +126,7 @@ public class StompClient {
 
                         case CLOSED:
                             Log.d(TAG, "Socket closed");
+                            lifecyclePublishSubject.onNext(lifecycleEvent);
                             disconnect();
                             break;
 
