@@ -1,12 +1,13 @@
 package ua.naiksoftware.stomp
 
-
-import io.reactivex.functions.Predicate
-import io.reactivex.subscribers.TestSubscriber
+import io.reactivex.rxjava3.functions.Predicate
+import io.reactivex.rxjava3.subscribers.TestSubscriber
+import org.junit.Test
 import ua.naiksoftware.stomp.dto.LifecycleEvent
 
 class ConnectionTests extends Configuration {
 
+    @Test
     def "connection must be opened"() {
         given:
         def client = Stomp.over(Stomp.ConnectionProvider.OKHTTP,

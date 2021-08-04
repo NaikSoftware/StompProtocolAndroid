@@ -1,16 +1,9 @@
 package ua.naiksoftware.stomp
 
 import com.andrewreitz.spock.android.AndroidSpecification
-import groovy.util.logging.Slf4j
 import org.testcontainers.containers.BindMode
 import org.testcontainers.containers.GenericContainer
-import org.testcontainers.containers.output.OutputFrame
-import org.testcontainers.containers.startupcheck.StartupCheckStrategy
-import org.testcontainers.containers.wait.strategy.Wait
 import spock.lang.Shared
-import spock.lang.Specification
-
-import java.util.function.Consumer
 
 class Configuration extends AndroidSpecification {
 
