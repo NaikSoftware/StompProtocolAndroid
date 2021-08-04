@@ -1,5 +1,6 @@
 package ua.naiksoftware.stomp
 
+import org.junit.Test
 import ua.naiksoftware.stomp.dto.StompCommand
 import ua.naiksoftware.stomp.dto.StompHeader
 import ua.naiksoftware.stomp.dto.StompMessage
@@ -7,6 +8,7 @@ import ua.naiksoftware.stomp.pathmatcher.RabbitPathMatcher
 
 class PathMatcherTests extends Configuration {
 
+    @Test
     def "rmq-style matcher must return expected value"() {
         given:
         def matcher = new RabbitPathMatcher()

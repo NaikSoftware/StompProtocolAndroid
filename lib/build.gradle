@@ -25,11 +25,11 @@ apply plugin: 'groovyx.android'
 group='com.github.NaikSoftware'
 
 android {
-    compileSdkVersion 28
+    compileSdkVersion 30
 
     defaultConfig {
         minSdkVersion 16
-        targetSdkVersion 25
+        targetSdkVersion 30
         versionCode 1
         versionName "1.0"
     }
@@ -53,16 +53,16 @@ android {
 
 
 dependencies {
-    implementation 'io.reactivex.rxjava2:rxjava:2.2.5'
+    implementation 'io.reactivex.rxjava3:rxjava:3.0.13'
     // Supported transports
     api 'org.java-websocket:Java-WebSocket:1.3.6'
-    api 'com.squareup.okhttp3:okhttp:3.12.1'
+    api 'com.squareup.okhttp3:okhttp:3.14.9'
     implementation 'com.android.support:support-annotations:28.0.0'
     testImplementation 'com.andrewreitz:spock-android:2.0.0'
-    testImplementation 'org.testcontainers:testcontainers:1.10.5'
+    testImplementation 'org.testcontainers:testcontainers:1.15.3'
     testImplementation 'org.spockframework:spock-core:1.1-groovy-2.4'
     testImplementation 'org.java-websocket:Java-WebSocket:1.3.6'
-    testImplementation 'com.squareup.okhttp3:okhttp:3.12.1'
+    testImplementation 'com.squareup.okhttp3:okhttp:3.14.9'
     testImplementation 'ch.qos.logback:logback-classic:1.2.3'
 }
 

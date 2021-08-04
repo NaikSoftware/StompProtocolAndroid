@@ -28,10 +28,10 @@ repositories {
 }
 
 dependencies {
-    compile 'org.springframework.boot:spring-boot-starter-websocket'
-    compile 'org.springframework.boot:spring-boot-starter-web'
-    compile 'ch.qos.logback:logback-classic:1.2.3'
-    compile 'org.codehaus.groovy:groovy-all:2.4.15'
+    implementation 'org.springframework.boot:spring-boot-starter-websocket'
+    implementation 'org.springframework.boot:spring-boot-starter-web'
+    implementation 'ch.qos.logback:logback-classic:1.2.3'
+    implementation 'org.codehaus.groovy:groovy-all:2.4.15'
 }
 
 dependencyManagement {
