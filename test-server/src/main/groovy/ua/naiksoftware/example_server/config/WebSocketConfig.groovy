@@ -1,13 +1,12 @@
-package ua.naiksoftware.test_server.config
+package ua.naiksoftware.example_server.config
 
-
+import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.context.annotation.Configuration
 import org.springframework.messaging.simp.config.MessageBrokerRegistry
-import org.springframework.scheduling.concurrent.DefaultManagedTaskScheduler
+import org.springframework.web.socket.config.annotation.AbstractWebSocketMessageBrokerConfigurer
 import org.springframework.web.socket.config.annotation.EnableWebSocket
 import org.springframework.web.socket.config.annotation.EnableWebSocketMessageBroker
 import org.springframework.web.socket.config.annotation.StompEndpointRegistry
-import org.springframework.web.socket.config.annotation.WebSocketMessageBrokerConfigurer
 import org.springframework.web.socket.config.annotation.WebSocketTransportRegistration
 
 /**
@@ -16,16 +15,11 @@ import org.springframework.web.socket.config.annotation.WebSocketTransportRegist
 @Configuration
 @EnableWebSocket
 @EnableWebSocketMessageBroker
-class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
+class WebSocketConfig extends AbstractWebSocketMessageBrokerConfigurer {
 
     @Override
     void configureMessageBroker(MessageBrokerRegistry config) {
-
-        long[] heartbeat = [ 30000, 30000 ];
-        config.enableSimpleBroker("/topic", "/queue", "/exchange")
-            .setTaskScheduler(new DefaultManagedTaskScheduler()) // enable heartbeats
-            .setHeartbeatValue(heartbeat); // enable heartbeats
-
+        config.enableSimpleBroker("/topic", "/queue", "/exchange");
 //        config.enableStompBrokerRelay("/topic", "/queue", "/exchange"); // Uncomment for external message broker (ActiveMQ, RabbitMQ)
         config.setApplicationDestinationPrefixes("/topic", "/queue"); // prefix in client queries
         config.setUserDestinationPrefix("/user");
@@ -33,7 +27,7 @@ class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
 
     @Override
     void registerStompEndpoints(StompEndpointRegistry registry) {
-        registry.addEndpoint("/example-endpoint").setAllowedOrigins("*").withSockJS()
+        registry.addEndpoint("/example-endpoint").withSockJS()
     }
 
     @Override

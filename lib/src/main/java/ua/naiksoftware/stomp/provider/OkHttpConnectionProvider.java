@@ -1,8 +1,9 @@
 package ua.naiksoftware.stomp.provider;
 
-import android.support.annotation.NonNull;
-import android.support.annotation.Nullable;
 import android.util.Log;
+
+import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
 
 import java.util.HashMap;
 import java.util.Map;
