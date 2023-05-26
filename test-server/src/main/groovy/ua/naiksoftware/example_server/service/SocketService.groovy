@@ -1,15 +1,15 @@
-package ua.naiksoftware.test_server.service
+package ua.naiksoftware.example_server.service
 
-import groovy.util.logging.Slf4j
+import groovy.util.logging.Log4j
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.messaging.simp.SimpMessagingTemplate
 import org.springframework.stereotype.Service
-import ua.naiksoftware.test_server.model.EchoModel
+import ua.naiksoftware.example_server.model.EchoModel
 
 /**
  * Created by Naik on 23.02.17.
  */
-@Slf4j
+@Log4j
 @Service
 class SocketService {
 
@@ -17,8 +17,8 @@ class SocketService {
     private SimpMessagingTemplate simpTemplate;
 
     def echoMessage(String message) {
-        log.debug("Start convertAndSend ${new Date()}")
+        log.info("Start convertAndSend ${new Date()}")
         simpTemplate.convertAndSend('/topic/greetings', new EchoModel(message))
-        log.debug("End convertAndSend ${new Date()}")
+        log.info("End convertAndSend ${new Date()}")
     }
 }

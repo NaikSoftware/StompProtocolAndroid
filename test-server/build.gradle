@@ -1,46 +1,42 @@
-group 'ua.naiksoftware.test_server'
-version '1.0'
+group 'ua.naiksoftware.example_server'
+version '1.0-SNAPSHOT'
 
 buildscript {
-
-    ext {
-        springBootVersion = '2.1.1.RELEASE'
-        springCloudVersion = 'Finchley.SR1'
-    }
-    
     repositories {
         mavenCentral()
     }
     dependencies {
-        classpath("org.springframework.boot:spring-boot-gradle-plugin:${springBootVersion}")
+        classpath("org.springframework.boot:spring-boot-gradle-plugin:1.5.1.RELEASE")
     }
 }
 
 apply plugin: 'groovy'
+apply plugin: 'java'
 apply plugin: 'org.springframework.boot'
-apply plugin: 'io.spring.dependency-management'
 
-sourceCompatibility = JavaVersion.VERSION_1_8
-targetCompatibility = JavaVersion.VERSION_1_8
+sourceCompatibility = 1.5
 
 repositories {
     mavenCentral()
 }
 
 dependencies {
-    compile 'org.springframework.boot:spring-boot-starter-websocket'
-    compile 'org.springframework.boot:spring-boot-starter-web'
-    compile 'ch.qos.logback:logback-classic:1.2.3'
-    compile 'org.codehaus.groovy:groovy-all:2.4.15'
+    compile("org.springframework.boot:spring-boot-starter-websocket")
+    compile 'org.codehaus.groovy:groovy-all:2.3.11'
+
+    // region external message broker
+    compile("org.springframework.boot:spring-boot-starter-amqp")
+    compile("org.springframework.integration:spring-integration-amqp")
+    compile("io.netty:netty-all:4.0.33.Final")
+    compile("io.projectreactor:reactor-net")
+    // endregion
+
+    testCompile("org.springframework.boot:spring-boot-starter-test")
+    testCompile group: 'junit', name: 'junit', version: '4.11'
 }
 
-dependencyManagement {
-    imports {
-        mavenBom "org.springframework.cloud:spring-cloud-dependencies:${springCloudVersion}"
+sourceSets {
+    main {
+        groovy { srcDirs = ["src/main/groovy"] }
     }
 }
-
-bootJar {
-    destinationDir = project.file("build/artifacts")
-}
-
