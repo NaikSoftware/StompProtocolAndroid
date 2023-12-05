@@ -1,37 +1,32 @@
 buildscript {
     repositories {
-        jcenter()
+        mavenCentral()
         maven {
             url "https://maven.google.com"
         }
         google()
     }
     dependencies {
-        classpath 'com.android.tools.build:gradle:3.3.0'
+        classpath 'com.android.tools.build:gradle:7.4.2'
         classpath 'com.github.dcendents:android-maven-gradle-plugin:2.1'
-        classpath 'org.codehaus.groovy:groovy-android-gradle-plugin:2.0.0'
     }
 }
 
 repositories {
-    jcenter()
+    mavenCentral()
     google()
 }
 
 apply plugin: 'com.android.library'
-apply plugin: 'com.github.dcendents.android-maven'
-apply plugin: 'groovyx.android'
 
 group='com.github.NaikSoftware'
 
 android {
-    compileSdkVersion 28
+    compileSdkVersion 33
 
     defaultConfig {
         minSdkVersion 16
-        targetSdkVersion 25
-        versionCode 1
-        versionName "1.0"
+        targetSdkVersion 27
     }
 
     compileOptions {
@@ -49,6 +44,7 @@ android {
     testOptions {
         unitTests.returnDefaultValues = true
     }
+    namespace 'ua.naiksoftware.stomp'
 }
 
 
@@ -68,7 +64,7 @@ dependencies {
 
 task sourcesJar(type: Jar) {
     from android.sourceSets.main.java.srcDirs
-    classifier = 'sources'
+    archiveClassifier = 'sources'
 }
 
 artifacts {
