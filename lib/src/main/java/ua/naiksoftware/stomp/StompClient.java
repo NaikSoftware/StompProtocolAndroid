@@ -30,25 +30,25 @@ import ua.naiksoftware.stomp.dto.StompHeader;
  * Created by naik on 05.05.16.
  */
 public class StompClient {
-
     private static final String TAG = StompClient.class.getSimpleName();
-
     public static final String SUPPORTED_VERSIONS = "1.1,1.2";
     public static final String DEFAULT_ACK = "auto";
 
     private final ConnectionProvider connectionProvider;
-    private ConcurrentHashMap<String, String> topics;
+    private List<StompHeader> headers;
+    private HeartBeatTask heartBeatTask;
     private boolean legacyWhitespace;
 
     private PublishSubject<StompMessage> messageStream;
     private BehaviorSubject<Boolean> connectionStream;
+    private PublishSubject<LifecycleEvent> lifecyclePublishSubject;
     private ConcurrentHashMap<String, Flowable<StompMessage>> streamMap;
+    private ConcurrentHashMap<String, String> topics;
+
     private PathMatcher pathMatcher;
     private Disposable lifecycleDisposable;
     private Disposable messagesDisposable;
-    private PublishSubject<LifecycleEvent> lifecyclePublishSubject;
-    private List<StompHeader> headers;
-    private HeartBeatTask heartBeatTask;
+
 
     public StompClient(ConnectionProvider connectionProvider) {
         this.connectionProvider = connectionProvider;
@@ -58,6 +58,37 @@ public class StompClient {
         heartBeatTask = new HeartBeatTask(this::sendHeartBeat, () -> {
             lifecyclePublishSubject.onNext(new LifecycleEvent(LifecycleEvent.Type.FAILED_SERVER_HEARTBEAT));
         });
+    }
+
+
+    @SuppressLint("CheckResult")
+    private void sendHeartBeat(@NonNull String pingMessage) {
+        Completable completable = connectionProvider.send(pingMessage);
+        CompletableSource connectionComplete = getConnectionStream()
+                .filter(isConnected -> isConnected)
+                .firstElement().ignoreElement();
+        completable.startWith(connectionComplete)
+                .onErrorComplete()
+                .subscribe();
+    }
+
+    public Flowable<LifecycleEvent> lifecycle() {
+        return lifecyclePublishSubject.toFlowable(BackpressureStrategy.BUFFER);
+    }
+    synchronized private BehaviorSubject<Boolean> getConnectionStream() {
+        if (connectionStream == null || connectionStream.hasComplete()) {
+            connectionStream = BehaviorSubject.createDefault(false);
+        }
+        return connectionStream;
+    }
+    synchronized private PublishSubject<StompMessage> getMessageStream() {
+        if (messageStream == null || messageStream.hasComplete()) {
+            messageStream = PublishSubject.create();
+        }
+        return messageStream;
+    }
+    public boolean isConnected() {
+        return getConnectionStream().getValue();
     }
 
     /**
@@ -71,7 +102,6 @@ public class StompClient {
         heartBeatTask.setServerHeartbeat(ms);
         return this;
     }
-
     /**
      * Sets the heartbeat interval that client propose to send.
      * <p>
@@ -83,6 +113,35 @@ public class StompClient {
         heartBeatTask.setClientHeartbeat(ms);
         return this;
     }
+    /**
+     * Reverts to the old frame formatting, which included two newlines between the message body
+     * and the end-of-frame marker.
+     * <p>
+     * Legacy: Body\n\n^@
+     * <p>
+     * Default: Body^@
+     *
+     * @param legacyWhitespace whether to append an extra two newlines
+     * @see <a href="http://stomp.github.io/stomp-specification-1.2.html#STOMP_Frames">The STOMP spec</a>
+     */
+    public void setLegacyWhitespace(boolean legacyWhitespace) {
+        this.legacyWhitespace = legacyWhitespace;
+    }
+    /**
+     * Set the wildcard or other matcher for Topic subscription.
+     * <p>
+     * Right now, the only options are simple, rmq supported.
+     * But you can write you own matcher by implementing {@link PathMatcher}
+     * <p>
+     * When set to {@link ua.naiksoftware.stomp.pathmatcher.RabbitPathMatcher}, topic subscription allows for RMQ-style wildcards.
+     * <p>
+     *
+     * @param pathMatcher Set to {@link SimplePathMatcher} by default
+     */
+    public void setPathMatcher(PathMatcher pathMatcher) {
+        this.pathMatcher = pathMatcher;
+    }
+
 
     /**
      * Connect without reconnect if connected
@@ -90,7 +149,6 @@ public class StompClient {
     public void connect() {
         connect(null);
     }
-
     /**
      * Connect to websocket. If already connected, this will silently fail.
      *
@@ -148,55 +206,6 @@ public class StompClient {
                 });
     }
 
-    synchronized private BehaviorSubject<Boolean> getConnectionStream() {
-        if (connectionStream == null || connectionStream.hasComplete()) {
-            connectionStream = BehaviorSubject.createDefault(false);
-        }
-        return connectionStream;
-    }
-
-    synchronized private PublishSubject<StompMessage> getMessageStream() {
-        if (messageStream == null || messageStream.hasComplete()) {
-            messageStream = PublishSubject.create();
-        }
-        return messageStream;
-    }
-
-    public Completable send(String destination) {
-        return send(destination, null);
-    }
-
-    public Completable send(String destination, String data) {
-        return send(new StompMessage(
-                StompCommand.SEND,
-                Collections.singletonList(new StompHeader(StompHeader.DESTINATION, destination)),
-                data));
-    }
-
-    public Completable send(@NonNull StompMessage stompMessage) {
-        Completable completable = connectionProvider.send(stompMessage.compile(legacyWhitespace));
-        CompletableSource connectionComplete = getConnectionStream()
-                .filter(isConnected -> isConnected)
-                .firstElement().ignoreElement();
-        return completable
-                .startWith(connectionComplete);
-    }
-
-    @SuppressLint("CheckResult")
-    private void sendHeartBeat(@NonNull String pingMessage) {
-        Completable completable = connectionProvider.send(pingMessage);
-        CompletableSource connectionComplete = getConnectionStream()
-                .filter(isConnected -> isConnected)
-                .firstElement().ignoreElement();
-        completable.startWith(connectionComplete)
-                .onErrorComplete()
-                .subscribe();
-    }
-
-    public Flowable<LifecycleEvent> lifecycle() {
-        return lifecyclePublishSubject.toFlowable(BackpressureStrategy.BUFFER);
-    }
-
     /**
      * Disconnect from server, and then reconnect with the last-used headers
      */
@@ -206,13 +215,11 @@ public class StompClient {
                 .subscribe(() -> connect(headers),
                         e -> Log.e(TAG, "Disconnect error", e));
     }
-
     @SuppressLint("CheckResult")
     public void disconnect() {
         disconnectCompletable().subscribe(() -> {
         }, e -> Log.e(TAG, "Disconnect error", e));
     }
-
     public Completable disconnectCompletable() {
 
         heartBeatTask.shutdown();
@@ -233,10 +240,27 @@ public class StompClient {
                 });
     }
 
+    public Completable send(String destination) {
+        return send(destination, null);
+    }
+    public Completable send(String destination, String data) {
+        return send(new StompMessage(
+                StompCommand.SEND,
+                Collections.singletonList(new StompHeader(StompHeader.DESTINATION, destination)),
+                data));
+    }
+    public Completable send(@NonNull StompMessage stompMessage) {
+        Completable completable = connectionProvider.send(stompMessage.compile(legacyWhitespace));
+        CompletableSource connectionComplete = getConnectionStream()
+                .filter(isConnected -> isConnected)
+                .firstElement().ignoreElement();
+        return completable
+                .startWith(connectionComplete);
+    }
+
     public Flowable<StompMessage> topic(String destinationPath) {
         return topic(destinationPath, null);
     }
-
     public Flowable<StompMessage> topic(@NonNull String destPath, List<StompHeader> headerList) {
         if (destPath == null)
             return Flowable.error(new IllegalArgumentException("Topic path cannot be null"));
@@ -251,7 +275,6 @@ public class StompClient {
             );
         return streamMap.get(destPath);
     }
-
     private Completable subscribePath(String destinationPath, @Nullable List<StompHeader> headerList) {
         String topicId = UUID.randomUUID().toString();
 
@@ -273,8 +296,6 @@ public class StompClient {
                 headers, null))
                 .doOnError(throwable -> unsubscribePath(destinationPath).subscribe());
     }
-
-
     private Completable unsubscribePath(String dest) {
         streamMap.remove(dest);
 
@@ -291,45 +312,17 @@ public class StompClient {
         return send(new StompMessage(StompCommand.UNSUBSCRIBE,
                 Collections.singletonList(new StompHeader(StompHeader.ID, topicId)), null)).onErrorComplete();
     }
-
-    /**
-     * Set the wildcard or other matcher for Topic subscription.
-     * <p>
-     * Right now, the only options are simple, rmq supported.
-     * But you can write you own matcher by implementing {@link PathMatcher}
-     * <p>
-     * When set to {@link ua.naiksoftware.stomp.pathmatcher.RabbitPathMatcher}, topic subscription allows for RMQ-style wildcards.
-     * <p>
-     *
-     * @param pathMatcher Set to {@link SimplePathMatcher} by default
-     */
-    public void setPathMatcher(PathMatcher pathMatcher) {
-        this.pathMatcher = pathMatcher;
-    }
-
-    public boolean isConnected() {
-        return getConnectionStream().getValue();
-    }
-
-    /**
-     * Reverts to the old frame formatting, which included two newlines between the message body
-     * and the end-of-frame marker.
-     * <p>
-     * Legacy: Body\n\n^@
-     * <p>
-     * Default: Body^@
-     *
-     * @param legacyWhitespace whether to append an extra two newlines
-     * @see <a href="http://stomp.github.io/stomp-specification-1.2.html#STOMP_Frames">The STOMP spec</a>
-     */
-    public void setLegacyWhitespace(boolean legacyWhitespace) {
-        this.legacyWhitespace = legacyWhitespace;
-    }
-    
     /** returns the to topic (subscription id) corresponding to a given destination  
      * @param dest the destination
      * @return the topic (subscription id) or null if no topic corresponds to the destination */
     public String getTopicId(String dest) {
         return topics.get(dest);
     }
+
+
+
+
+
+
+
 }
