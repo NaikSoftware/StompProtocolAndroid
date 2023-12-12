@@ -17,4 +17,5 @@ public class EchoModel {
     public void setEcho(String echo) {
         this.echo = echo;
     }
+    
 }
