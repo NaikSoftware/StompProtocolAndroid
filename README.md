@@ -65,23 +65,77 @@ Check out the full example server https://github.com/NaikSoftware/stomp-protocol
 
 **Basic usage**
 ``` java
+ 
+public class MainActivity extends AppCompatActivity {
 
- private StompClient mStompClient;
+    // ...
  
- // ...
+    private AutoStompClient mStompClient;
+
+
+    @Override
+    protected void onCreate(Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
+        mStompClient = new AutoStompClient(Stomp.ConnectionProvider.OKHTTP, "ws://" + ANDROID_EMULATOR_LOCALHOST + ":" + RestClient.SERVER_PORT + "/example-endpoint/websocket",
+                AndroidSchedulers.mainThread());
+    }
+
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
+        mStompClient.unsubscribeAll();
+    }
+
+
+    public void connectStomp(View view) {
+        List<StompHeader> headers = new ArrayList<>();
+        headers.add(new StompHeader(LOGIN, "guest"));
+        headers.add(new StompHeader(PASSCODE, "guest"));
+
+        Consumer<? super LifecycleEvent> onLifecycleEvents = lifecycleEvent -> {
+            switch (lifecycleEvent.getType()) {
+                case OPENED:
+                    toast("Stomp connection opened");
+                    break;
+                case ERROR:
+                    toast("Stomp connection error");
+                    break;
+                case CLOSED:
+                    toast("Stomp connection closed");
+                    break;
+                case FAILED_SERVER_HEARTBEAT:
+                    toast("Stomp failed server heartbeat");
+                    break;
+            }
+        };
+        Consumer<? super Throwable> onThrow = throwable -> toast(throwable.getMessage());
+        Consumer<? super StompMessage> onMessaged = topicMessage -> {
+            toast("Received " + topicMessage.getPayload());
+        };
+
+        mStompClient.connect(headers, new Integer[]{1000, 1000}, onLifecycleEvents, onThrow);
+        mStompClient.subscribe("/topic/greetings", onMessaged, onThrow);
+    }
+
+    public void disconnectStomp(View view) {
+        mStompClient.disconnect();
+    }
+
+    public void sendEchoViaStomp(View v) {
+        mStompClient.send(
+                "/topic/hello-msg-mapping", "Echo STOMP " + mTimeFormat.format(new Date()),
+                () -> toast("STOMP echo send successfully"), throwable -> toast(throwable.getMessage())
+        );
+    }
+
+    private void toast(String text) {
+        Log.i(TAG, text);
+        Toast.makeText(this, text, Toast.LENGTH_SHORT).show();
+    }
+    
+    // ...
  
- mStompClient = Stomp.over(Stomp.ConnectionProvider.OKHTTP, "ws://10.0.2.2:8080/example-endpoint/websocket");
- mStompClient.connect();
-  
- mStompClient.topic("/topic/greetings").subscribe(topicMessage -> {
-     Log.d(TAG, topicMessage.getPayload());
- });
-  
- mStompClient.send("/topic/hello-msg-mapping", "My first STOMP message!").subscribe();
-  
- // ...
- 
- mStompClient.disconnect();
+}
 
 ```
 
