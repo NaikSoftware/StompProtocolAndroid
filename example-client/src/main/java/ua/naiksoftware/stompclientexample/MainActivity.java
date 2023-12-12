@@ -1,5 +1,6 @@
 package ua.naiksoftware.stompclientexample;
 
+
 import android.os.Bundle;
 import android.util.Log;
 import android.view.View;
@@ -17,19 +18,21 @@ import java.util.Locale;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
+
 import io.reactivex.CompletableTransformer;
 import io.reactivex.android.schedulers.AndroidSchedulers;
-import io.reactivex.disposables.CompositeDisposable;
 import io.reactivex.disposables.Disposable;
 import io.reactivex.functions.Consumer;
 import io.reactivex.schedulers.Schedulers;
-import ua.naiksoftware.stomp.AutomatedStompClient;
+
+import ua.naiksoftware.stomp.AutoStompClient;
 import ua.naiksoftware.stomp.Stomp;
 import ua.naiksoftware.stomp.dto.LifecycleEvent;
 import ua.naiksoftware.stomp.dto.StompHeader;
-import ua.naiksoftware.stomp.StompClient;
+import ua.naiksoftware.stomp.dto.StompMessage;
 
 import static ua.naiksoftware.stompclientexample.RestClient.ANDROID_EMULATOR_LOCALHOST;
+
 
 public class MainActivity extends AppCompatActivity {
     private static final String TAG = "MainActivity";
@@ -42,7 +45,7 @@ public class MainActivity extends AppCompatActivity {
     private RecyclerView mRecyclerView;
 
     private final Gson mGson = new GsonBuilder().create();
-    private AutomatedStompClient mStompClient;
+    private AutoStompClient mStompClient;
     private Disposable mRestPingDisposable;
 
 
@@ -56,7 +59,7 @@ public class MainActivity extends AppCompatActivity {
         mRecyclerView.setAdapter(mAdapter);
         mRecyclerView.setLayoutManager(new LinearLayoutManager(this, LinearLayoutManager.VERTICAL, true));
 
-        mStompClient = new AutomatedStompClient(Stomp.ConnectionProvider.OKHTTP, "ws://" + ANDROID_EMULATOR_LOCALHOST + ":" + RestClient.SERVER_PORT + "/example-endpoint/websocket",
+        mStompClient = new AutoStompClient(Stomp.ConnectionProvider.OKHTTP, "ws://" + ANDROID_EMULATOR_LOCALHOST + ":" + RestClient.SERVER_PORT + "/example-endpoint/websocket",
                 AndroidSchedulers.mainThread());
     }
 
@@ -80,11 +83,9 @@ public class MainActivity extends AppCompatActivity {
         Consumer<? super LifecycleEvent> onLifecycleEvents = lifecycleEvent -> {
             switch (lifecycleEvent.getType()) {
                 case OPENED:
-                    Log.i(TAG, "rgsgfsdf ");
                     toast("Stomp connection opened");
                     break;
                 case ERROR:
-                    Log.e(TAG, "Stomp connection error", lifecycleEvent.getException());
                     toast("Stomp connection error");
                     break;
                 case CLOSED:
@@ -95,21 +96,14 @@ public class MainActivity extends AppCompatActivity {
                     break;
             }
         };
+        Consumer<? super Throwable> onThrow = throwable -> toast(throwable.getMessage());
+        Consumer<? super StompMessage> onMessaged = topicMessage -> {
+            toast("Received " + topicMessage.getPayload());
+            addItem(mGson.fromJson(topicMessage.getPayload(), EchoModel.class));
+        };
 
-        mStompClient.connect(headers, new Integer[]{1000, 1000}, onLifecycleEvents, throwable -> {});
-
-
-        // Subscribe to Receive greetings
-        mStompClient.subscribe(
-                "/topic/greetings",
-                topicMessage -> {
-                    Log.d(TAG, "Received " + topicMessage.getPayload());
-                    addItem(mGson.fromJson(topicMessage.getPayload(), EchoModel.class));
-                },
-                throwable -> {
-                    Log.e(TAG, "Error on subscribe topic", throwable);
-                }
-        );
+        mStompClient.connect(headers, new Integer[]{1000, 1000}, onLifecycleEvents, onThrow);
+        mStompClient.subscribe("/topic/greetings", onMessaged, onThrow);
     }
 
     /**
@@ -127,13 +121,7 @@ public class MainActivity extends AppCompatActivity {
     public void sendEchoViaStomp(View v) {
         mStompClient.send(
                 "/topic/hello-msg-mapping", "Echo STOMP " + mTimeFormat.format(new Date()),
-                () -> {
-                    Log.d(TAG, "STOMP echo send successfully");
-                },
-                throwable -> {
-                    Log.e(TAG, "Error send STOMP echo", throwable);
-                    toast(throwable.getMessage());
-                }
+                () -> toast("STOMP echo send successfully"), throwable -> toast(throwable.getMessage())
         );
     }
 
@@ -145,12 +133,7 @@ public class MainActivity extends AppCompatActivity {
         mRestPingDisposable = RestClient.getInstance().getExampleRepository()
                 .sendRestEcho("Echo REST " + mTimeFormat.format(new Date()))
                 .compose(applySchedulers())
-                .subscribe(() -> {
-                    Log.d(TAG, "REST echo send successfully");
-                }, throwable -> {
-                    Log.e(TAG, "Error send REST echo", throwable);
-                    toast(throwable.getMessage());
-                });
+                .subscribe(() -> toast( "REST echo send successfully"), throwable -> toast(throwable.getMessage()));
     }
 
 

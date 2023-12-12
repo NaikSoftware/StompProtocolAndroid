@@ -17,14 +17,14 @@ import java.util.List;
 import java.util.Map;
 
 
-public class AutomatedStompClient {
+public class AutoStompClient {
     private final StompClient mStompClient;
     private final Scheduler mScheduler;
     private final CompositeDisposable compositeDisposable;
     private final Map<String, Disposable> destinationDisposable;
 
 
-    public AutomatedStompClient (Stomp.ConnectionProvider cp, String uri, Scheduler scheduler) {
+    public AutoStompClient(Stomp.ConnectionProvider cp, String uri, Scheduler scheduler) {
         mStompClient = Stomp.over(cp, uri);
         mScheduler = scheduler;
         compositeDisposable = new CompositeDisposable();
@@ -47,9 +47,9 @@ public class AutomatedStompClient {
         );
         mStompClient.connect(headers);
     }
-    public void subscribe(String destinationPath, Consumer<? super StompMessage> onLifecycleEvents, Consumer<? super Throwable> onThrow){
+    public void subscribe(String destinationPath, Consumer<? super StompMessage> onMessaged, Consumer<? super Throwable> onThrow){
         Disposable cd = mStompClient.topic(destinationPath).subscribeOn(Schedulers.io())
-                .observeOn(mScheduler).subscribe(onLifecycleEvents, onThrow);
+                .observeOn(mScheduler).subscribe(onMessaged, onThrow);
         compositeDisposable.add(cd);
         destinationDisposable.put(destinationPath, cd);
     }
@@ -65,6 +65,6 @@ public class AutomatedStompClient {
         destinationDisposable.remove(destinationPath);
     }
     public void unsubscribeAll() {
-        compositeDisposable.dispose();
+        compositeDisposable.clear();
     }
 }
